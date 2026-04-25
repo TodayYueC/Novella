@@ -42,6 +42,14 @@ tmp/
 temp/
 *.tmp
 
+# Local planning/requirement documents. Keep these on the machine, not in GitHub.
+*_需求文档.md
+*_项目需求文档.md
+*_进度文档.md
+*_项目进度文档.md
+需求文档/
+项目文档/
+
 # OS/editor noise
 .DS_Store
 Thumbs.db
