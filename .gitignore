@@ -1,0 +1,52 @@
+# Godot local/editor state
+.godot/
+.godot_user/
+.import/
+*.translation
+
+# Local Godot engine/runtime downloads. Do not commit editor binaries or export templates.
+GodotEngine/
+Godot*.exe
+Godot*_console.exe
+godot
+godot.*
+export_templates/
+templates/
+
+# Godot exports and build artifacts
+build/
+dist/
+exports/
+*.pck
+*.zip
+*.app/
+*.apk
+*.aab
+*.ipa
+*.exe
+*.dll
+*.dylib
+*.so
+
+# C# / Mono artifacts created by Godot Mono projects
+.mono/
+.vs/
+bin/
+obj/
+
+# Logs, caches, temp files
+*.log
+logs/
+cache/
+tmp/
+temp/
+*.tmp
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.suo
+*.user

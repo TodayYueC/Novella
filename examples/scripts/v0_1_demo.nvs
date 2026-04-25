@@ -1,0 +1,21 @@
+@var affinity = 0
+
+label start:
+    凉音: 你好，欢迎来到Novella！
+    @set affinity += 5
+    menu:
+        "打招呼" if affinity >= 0:
+            jump greet_path
+        "无视":
+            jump ignore_path
+
+label greet_path:
+    凉音: 很高兴认识你！好感度：{affinity}
+    jump end_path
+
+label ignore_path:
+    凉音: ...你为什么不理我？好感度：{affinity}
+    jump end_path
+
+label end_path:
+    凉音: 演示结束。

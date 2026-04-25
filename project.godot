@@ -1,0 +1,18 @@
+; Engine configuration file.
+; Novella targets Godot 4.6 as the primary development runtime and keeps v0.1 APIs compatible with Godot 4.3+ where practical.
+
+config_version=5
+
+[application]
+
+config/name="Novella"
+config/description="Godot 4 visual novel plugin core."
+config/features=PackedStringArray("4.6")
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/novella/plugin.cfg")
+
+[autoload]
+
+Novella="*res://addons/novella/novella.gd"
