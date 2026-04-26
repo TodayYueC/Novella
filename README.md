@@ -1,6 +1,6 @@
 # Novella
 
-Novella is a Godot 4 visual novel / GalGame plugin. The v0.1 alpha focuses on the script runtime core: services, resources, Novella Script parsing, variables, commands, and a small VM.
+Novella is a Godot 4 visual novel / GalGame plugin. The current implementation includes the v0.1 script runtime core plus the first v0.2 text presentation slice.
 
 ## Runtime Target
 
@@ -21,6 +21,13 @@ The script uses the local Godot 4.6 executable under `GodotEngine/` by default. 
 ```powershell
 .\scripts\test-godot.ps1 -GodotExe "C:\Path\To\Godot_v4.6-stable_win64_console.exe"
 ```
+
+## Implemented Milestones
+
+- v0.1 runtime core: parser, AST, VM, variable manager, command registry, basic flow commands.
+- v0.2 text presentation slice: typewriter timing, rich text conversion, ADV/NVL printer state, `@mode adv/nvl`, VM printer dispatch.
+
+Not yet implemented: visual UI scenes, portraits, backgrounds, audio, camera, save/load, rollback, localization, and editor timeline tools.
 
 ## License
 

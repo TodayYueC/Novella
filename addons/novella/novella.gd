@@ -7,6 +7,7 @@ const CommandRegistry := preload("res://addons/novella/script/command_registry.g
 const Parser := preload("res://addons/novella/script/parser.gd")
 const VM := preload("res://addons/novella/script/novella_vm.gd")
 const BasicCommands := preload("res://addons/novella/script/commands/basic_commands.gd")
+const PrinterManager := preload("res://addons/novella/presentation/printer_manager.gd")
 
 var services: ServiceBus
 var events: EventBus
@@ -15,6 +16,7 @@ var commands: CommandRegistry
 var parser: Parser
 var vm: VM
 var basic_commands: BasicCommands
+var printer_manager: PrinterManager
 
 func _ready() -> void:
 	_bootstrap()
@@ -27,6 +29,7 @@ func _bootstrap() -> void:
 	commands = CommandRegistry.new()
 	parser = Parser.new()
 	vm = VM.new()
+	printer_manager = PrinterManager.new()
 	basic_commands = BasicCommands.new()
 	basic_commands.register_all(commands, variables)
 
@@ -35,9 +38,11 @@ func _bootstrap() -> void:
 	services.register_service(&"command_registry", commands, true)
 	services.register_service(&"script_parser", parser, true)
 	services.register_service(&"vm", vm, true)
+	services.register_service(&"printer_manager", printer_manager, true)
 
 	vm.variable_manager = variables
 	vm.command_registry = commands
+	vm.printer_manager = printer_manager
 
 
 func reset_runtime() -> void:
@@ -60,3 +65,7 @@ func register_command(command_name: StringName, handler: Callable, options: Dict
 
 func register_service(service_name: StringName, service: Variant, replace_existing: bool = true) -> void:
 	services.register_service(service_name, service, replace_existing)
+
+
+func register_printer(mode: StringName, printer: Variant, replace_existing: bool = true) -> void:
+	printer_manager.register_printer(mode, printer, replace_existing)

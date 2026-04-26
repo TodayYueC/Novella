@@ -1,0 +1,25 @@
+extends "res://addons/novella/presentation/printers/base_printer.gd"
+
+class_name NovellaAdvPrinter
+
+var max_lines: int = 3
+var show_side_portrait: bool = true
+
+func _init() -> void:
+	mode = &"adv"
+
+
+func present_line(speaker: String, text: String, options: Dictionary = {}) -> Dictionary:
+	var payload := {
+		"mode": String(mode),
+		"speaker": speaker,
+		"text": text,
+		"options": options.duplicate(true),
+	}
+	payload["layout"] = "bottom_dialogue_box"
+	payload["max_lines"] = max_lines
+	payload["show_side_portrait"] = show_side_portrait
+	current_payload = payload
+	history.append(payload.duplicate(true))
+	line_presented.emit(payload)
+	return payload

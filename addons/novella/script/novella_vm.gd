@@ -18,6 +18,7 @@ signal finished(transcript: Array)
 
 var variable_manager: Variant = VariableManager.new()
 var command_registry: Variant = CommandRegistry.new()
+var printer_manager: Variant = null
 var choice_strategy: Callable = Callable()
 
 var ast = null
@@ -87,12 +88,14 @@ func _execute_node(node) -> Dictionary:
 			return {"ok": true}
 		&"dialogue":
 			var text := interpolator.interpolate(node.text, variable_manager)
-			transcript.append({"type": "dialogue", "speaker": node.speaker, "text": text, "line": node.line})
+			var presentation := _present_dialogue(node.speaker, text)
+			transcript.append({"type": "dialogue", "speaker": node.speaker, "text": text, "line": node.line, "presentation": presentation})
 			dialogue_requested.emit(node.speaker, text, node.line)
 			return {"ok": true}
 		&"narration":
 			var text := interpolator.interpolate(node.text, variable_manager)
-			transcript.append({"type": "narration", "text": text, "line": node.line})
+			var presentation := _present_narration(text)
+			transcript.append({"type": "narration", "text": text, "line": node.line, "presentation": presentation})
 			narration_requested.emit(text, node.line)
 			return {"ok": true}
 		&"command":
@@ -118,6 +121,10 @@ func _execute_command_node(node) -> Dictionary:
 	var result: Dictionary = command_registry.execute(node.command_name, node.raw_arguments, _context_for(node))
 	if not bool(result.get("ok", false)):
 		_emit_error(str(result.get("error", "Command failed.")), node.line)
+	elif result.has("mode") and printer_manager != null and printer_manager.has_method("set_mode"):
+		var changed: bool = printer_manager.set_mode(result["mode"])
+		if not changed:
+			return {"ok": false, "error": "Unknown printer mode '%s'." % result["mode"]}
 	return result
 
 
@@ -164,9 +171,22 @@ func _context_for(node) -> Dictionary:
 	return {
 		"vm": self,
 		"variables": variable_manager,
+		"printer_manager": printer_manager,
 		"node": node,
 		"line": node.line,
 	}
+
+
+func _present_dialogue(speaker: String, text: String) -> Dictionary:
+	if printer_manager != null and printer_manager.has_method("present_dialogue"):
+		return printer_manager.present_dialogue(speaker, text)
+	return {}
+
+
+func _present_narration(text: String) -> Dictionary:
+	if printer_manager != null and printer_manager.has_method("present_narration"):
+		return printer_manager.present_narration(text)
+	return {}
 
 
 func _emit_error(message: String, line: int) -> void:

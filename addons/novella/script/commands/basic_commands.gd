@@ -14,6 +14,7 @@ func register_all(registry: Variant, p_variable_manager: Variant) -> void:
 	registry.register_command(&"set", Callable(self, "_command_set"))
 	registry.register_command(&"flag", Callable(self, "_command_flag"))
 	registry.register_command(&"wait", Callable(self, "_command_wait"))
+	registry.register_command(&"mode", Callable(self, "_command_mode"))
 	registry.register_command(&"jump", Callable(self, "_command_jump"))
 	registry.register_command(&"call", Callable(self, "_command_call"))
 	registry.register_command(&"return", Callable(self, "_command_return"))
@@ -81,6 +82,13 @@ func _command_flag(raw_arguments: String, _context: Dictionary) -> Dictionary:
 func _command_wait(raw_arguments: String, _context: Dictionary) -> Dictionary:
 	var seconds := float(_evaluate_value(raw_arguments.strip_edges()))
 	return {"ok": true, "wait": seconds}
+
+
+func _command_mode(raw_arguments: String, _context: Dictionary) -> Dictionary:
+	var parts := raw_arguments.split(" ", false)
+	if parts.is_empty():
+		return {"ok": false, "error": "Invalid @mode syntax. Expected '@mode adv|nvl'."}
+	return {"ok": true, "mode": StringName(parts[0]), "raw": raw_arguments}
 
 
 func _command_jump(raw_arguments: String, _context: Dictionary) -> Dictionary:
