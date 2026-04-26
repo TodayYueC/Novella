@@ -14,11 +14,20 @@ signal narration_requested(text: String, line: int)
 signal choice_requested(choices: Array, selected_index: int, line: int)
 signal node_completed(node: Variant)
 signal runtime_error(message: String, line: int)
+signal state_restored(state: Dictionary)
 signal finished(transcript: Array)
 
 var variable_manager: Variant = VariableManager.new()
 var command_registry: Variant = CommandRegistry.new()
 var printer_manager: Variant = null
+var choice_manager: Variant = null
+var rollback_manager: Variant = null
+var backlog_manager: Variant = null
+var skip_manager: Variant = null
+var auto_manager: Variant = null
+var save_manager: Variant = null
+var quick_menu_manager: Variant = null
+var state_providers: Dictionary = {}
 var choice_strategy: Callable = Callable()
 
 var ast = null
@@ -54,6 +63,8 @@ func run(max_steps: int = 10000) -> Array:
 		node_completed.emit(node)
 		if result.has("finish") and result["finish"]:
 			break
+		if result.has("restored_state") and result["restored_state"]:
+			continue
 		if result.has("jump"):
 			var jump_index := label_manager.get_index(result["jump"])
 			if jump_index < 0:
@@ -87,14 +98,22 @@ func _execute_node(node) -> Dictionary:
 		&"label":
 			return {"ok": true}
 		&"dialogue":
+			_push_rollback_snapshot(node)
 			var text := interpolator.interpolate(node.text, variable_manager)
 			var presentation := _present_dialogue(node.speaker, text)
+			_mark_line_read(node)
+			if backlog_manager != null and backlog_manager.has_method("add_dialogue"):
+				backlog_manager.add_dialogue(node.speaker, text, node.line, presentation)
 			transcript.append({"type": "dialogue", "speaker": node.speaker, "text": text, "line": node.line, "presentation": presentation.duplicate(true)})
 			dialogue_requested.emit(node.speaker, text, node.line)
 			return {"ok": true}
 		&"narration":
+			_push_rollback_snapshot(node)
 			var text := interpolator.interpolate(node.text, variable_manager)
 			var presentation := _present_narration(text)
+			_mark_line_read(node)
+			if backlog_manager != null and backlog_manager.has_method("add_narration"):
+				backlog_manager.add_narration(text, node.line, presentation)
 			transcript.append({"type": "narration", "text": text, "line": node.line, "presentation": presentation.duplicate(true)})
 			narration_requested.emit(text, node.line)
 			return {"ok": true}
@@ -121,7 +140,7 @@ func _execute_command_node(node) -> Dictionary:
 	var result: Dictionary = command_registry.execute(node.command_name, node.raw_arguments, _context_for(node))
 	if not bool(result.get("ok", false)):
 		_emit_error(str(result.get("error", "Command failed.")), node.line)
-	elif result.has("mode") and printer_manager != null and printer_manager.has_method("set_mode"):
+	elif node.command_name == &"mode" and result.has("mode") and printer_manager != null and printer_manager.has_method("set_mode"):
 		var changed: bool = printer_manager.set_mode(result["mode"])
 		if not changed:
 			return {"ok": false, "error": "Unknown printer mode '%s'." % result["mode"]}
@@ -129,11 +148,27 @@ func _execute_command_node(node) -> Dictionary:
 
 
 func _execute_menu(node) -> Dictionary:
+	_push_rollback_snapshot(node)
+	var prepared_choices: Array = []
 	var available: Array = []
-	for i in range(node.choices.size()):
-		var choice = node.choices[i]
-		if choice.condition.is_empty() or bool(evaluator.evaluate(choice.condition, variable_manager, false)):
-			available.append(i)
+	if choice_manager != null and choice_manager.has_method("build_choices"):
+		prepared_choices = choice_manager.build_choices(node.choices, node.line, variable_manager)
+		available = choice_manager.available_indices(prepared_choices)
+	else:
+		for i in range(node.choices.size()):
+			var choice = node.choices[i]
+			if choice.condition.is_empty() or bool(evaluator.evaluate(choice.condition, variable_manager, false)):
+				available.append(i)
+		for index in available:
+			var choice = node.choices[index]
+			prepared_choices.append({
+				"index": index,
+				"text": interpolator.interpolate(choice.text, variable_manager),
+				"raw_text": choice.text,
+				"condition": choice.condition,
+				"enabled": true,
+				"line": choice.line,
+			})
 	if available.is_empty():
 		_emit_error("Menu has no available choices.", node.line)
 		return {"ok": false}
@@ -142,9 +177,16 @@ func _execute_menu(node) -> Dictionary:
 		var chosen: Variant = choice_strategy.call(node.choices, available)
 		if chosen is int and available.has(chosen):
 			selected_index = chosen
+	if choice_manager != null and choice_manager.has_method("select_choice"):
+		var selection: Dictionary = choice_manager.select_choice(prepared_choices, selected_index, node.line)
+		if bool(selection.get("ok", false)):
+			selected_index = int(selection.get("index", selected_index))
 	var selected = node.choices[selected_index]
-	choice_requested.emit(node.choices, selected_index, node.line)
-	transcript.append({"type": "choice", "text": selected.text, "index": selected_index, "line": selected.line})
+	var selected_text := interpolator.interpolate(selected.text, variable_manager)
+	choice_requested.emit(prepared_choices, selected_index, node.line)
+	if backlog_manager != null and backlog_manager.has_method("add_choice"):
+		backlog_manager.add_choice(selected_text, selected.line, selected_index)
+	transcript.append({"type": "choice", "text": selected_text, "index": selected_index, "line": selected.line})
 	return _execute_inline_nodes(selected.actions)
 
 
@@ -172,9 +214,45 @@ func _context_for(node) -> Dictionary:
 		"vm": self,
 		"variables": variable_manager,
 		"printer_manager": printer_manager,
+		"choice_manager": choice_manager,
+		"rollback_manager": rollback_manager,
+		"backlog_manager": backlog_manager,
+		"skip_manager": skip_manager,
+		"auto_manager": auto_manager,
+		"save_manager": save_manager,
+		"quick_menu_manager": quick_menu_manager,
 		"node": node,
 		"line": node.line,
 	}
+
+
+func snapshot_state() -> Dictionary:
+	var provider_states: Dictionary = {}
+	for provider_name in state_providers:
+		var provider = state_providers[provider_name]
+		if provider != null and provider.has_method("get_state"):
+			provider_states[String(provider_name)] = provider.get_state()
+	return {
+		"current_index": current_index,
+		"call_stack": call_stack.duplicate(true),
+		"transcript": transcript.duplicate(true),
+		"variables": variable_manager.snapshot() if variable_manager != null and variable_manager.has_method("snapshot") else {},
+		"providers": provider_states,
+	}
+
+
+func restore_state(state: Dictionary) -> void:
+	current_index = int(state.get("current_index", current_index))
+	call_stack = state.get("call_stack", call_stack).duplicate(true)
+	transcript = state.get("transcript", transcript).duplicate(true)
+	if variable_manager != null and variable_manager.has_method("restore") and state.has("variables"):
+		variable_manager.restore(state["variables"])
+	var provider_states: Dictionary = state.get("providers", {})
+	for provider_name in provider_states:
+		var provider = state_providers.get(StringName(str(provider_name)), state_providers.get(str(provider_name)))
+		if provider != null and provider.has_method("restore_state"):
+			provider.restore_state(provider_states[provider_name])
+	state_restored.emit(state.duplicate(true))
 
 
 func _present_dialogue(speaker: String, text: String) -> Dictionary:
@@ -193,6 +271,18 @@ func _emit_error(message: String, line: int) -> void:
 	transcript.append({"type": "error", "message": message, "line": line})
 	runtime_error.emit(message, line)
 	push_warning("Novella runtime error at line %s: %s" % [line, message])
+
+
+func _push_rollback_snapshot(node) -> void:
+	if rollback_manager == null or not rollback_manager.has_method("push_snapshot"):
+		return
+	rollback_manager.push_snapshot(snapshot_state(), {"line": node.line, "kind": String(node.kind), "index": current_index})
+
+
+func _mark_line_read(node) -> void:
+	if skip_manager == null or not skip_manager.has_method("mark_read"):
+		return
+	skip_manager.mark_read("%s:%s" % [node.line, String(node.kind)])
 
 
 func _current_line() -> int:

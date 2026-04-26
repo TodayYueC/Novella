@@ -65,3 +65,8 @@ func get_state() -> Dictionary:
 		"background": current_background.duplicate(true),
 		"environment": environment.duplicate(true),
 	}
+
+
+func restore_state(state: Dictionary) -> void:
+	current_background = state.get("background", {}).duplicate(true)
+	environment = state.get("environment", {}).duplicate(true)

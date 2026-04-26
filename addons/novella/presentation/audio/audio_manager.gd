@@ -59,6 +59,11 @@ func get_state() -> Dictionary:
 	}
 
 
+func restore_state(state: Dictionary) -> void:
+	channels = state.get("channels", channels).duplicate(true)
+	volumes = state.get("volumes", volumes).duplicate(true)
+
+
 func _as_bool(value: Variant) -> bool:
 	if value is bool:
 		return value

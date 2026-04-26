@@ -118,6 +118,25 @@ func get_scene_state() -> Dictionary:
 	return result
 
 
+func get_state() -> Dictionary:
+	return {
+		"characters": get_scene_state(),
+		"positions": positions.duplicate(true),
+		"max_visible_characters": max_visible_characters,
+	}
+
+
+func restore_state(state: Dictionary) -> void:
+	positions = state.get("positions", positions).duplicate(true)
+	max_visible_characters = int(state.get("max_visible_characters", max_visible_characters))
+	visible_characters.clear()
+	var characters: Dictionary = state.get("characters", {})
+	for character_id in characters:
+		var restored: Dictionary = characters[character_id].duplicate(true)
+		restored["sprite"] = null
+		visible_characters[StringName(str(character_id))] = restored
+
+
 func clear() -> void:
 	visible_characters.clear()
 	side_portrait.clear()

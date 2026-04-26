@@ -70,6 +70,32 @@ func get_current_printer() -> Variant:
 	return printers.get(current_mode)
 
 
+func get_state() -> Dictionary:
+	var printer_states: Dictionary = {}
+	for mode_name in printers:
+		var printer = printers[mode_name]
+		if printer != null and printer.has_method("get_state"):
+			printer_states[String(mode_name)] = printer.get_state()
+	return {
+		"current_mode": String(current_mode),
+		"default_cps": default_cps,
+		"printers": printer_states,
+	}
+
+
+func restore_state(state: Dictionary) -> void:
+	default_cps = float(state.get("default_cps", default_cps))
+	var requested_mode := StringName(str(state.get("current_mode", String(current_mode))))
+	if printers.has(requested_mode):
+		current_mode = requested_mode
+	var printer_states: Dictionary = state.get("printers", {})
+	for mode_text in printer_states:
+		var mode_name := StringName(str(mode_text))
+		var printer = printers.get(mode_name)
+		if printer != null and printer.has_method("restore_state"):
+			printer.restore_state(printer_states[mode_text])
+
+
 func _present(speaker: String, text: String, options: Dictionary) -> Dictionary:
 	var parsed := parser.parse(text)
 	var cps := float(options.get("cps", default_cps))

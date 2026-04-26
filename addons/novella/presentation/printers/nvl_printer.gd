@@ -31,3 +31,16 @@ func present_line(speaker: String, text: String, options: Dictionary = {}) -> Di
 func clear() -> void:
 	page_lines.clear()
 	super.clear()
+
+
+func get_state() -> Dictionary:
+	var state := super.get_state()
+	state["page_capacity"] = page_capacity
+	state["page_lines"] = page_lines.duplicate(true)
+	return state
+
+
+func restore_state(state: Dictionary) -> void:
+	super.restore_state(state)
+	page_capacity = int(state.get("page_capacity", page_capacity))
+	page_lines = state.get("page_lines", []).duplicate(true)

@@ -8,6 +8,7 @@ const VariableManager := preload("res://addons/novella/script/variable_manager.g
 const CommandRegistry := preload("res://addons/novella/script/command_registry.gd")
 const BasicCommands := preload("res://addons/novella/script/commands/basic_commands.gd")
 const PresentationCommands := preload("res://addons/novella/script/commands/presentation_commands.gd")
+const InteractionCommands := preload("res://addons/novella/script/commands/interaction_commands.gd")
 const VM := preload("res://addons/novella/script/novella_vm.gd")
 const RichTextParser := preload("res://addons/novella/presentation/rich_text_parser.gd")
 const TypewriterEffect := preload("res://addons/novella/presentation/typewriter_effect.gd")
@@ -17,13 +18,20 @@ const BackgroundManager := preload("res://addons/novella/presentation/background
 const EffectManager := preload("res://addons/novella/presentation/effects/effect_manager.gd")
 const AudioManager := preload("res://addons/novella/presentation/audio/audio_manager.gd")
 const CameraDirector := preload("res://addons/novella/presentation/camera/camera_director.gd")
+const ChoiceManager := preload("res://addons/novella/interaction/choice_manager.gd")
+const SaveManager := preload("res://addons/novella/state/save_manager.gd")
+const RollbackManager := preload("res://addons/novella/state/rollback_manager.gd")
+const SkipManager := preload("res://addons/novella/interaction/skip_manager.gd")
+const AutoManager := preload("res://addons/novella/interaction/auto_manager.gd")
+const BacklogManager := preload("res://addons/novella/state/backlog_manager.gd")
+const QuickMenuManager := preload("res://addons/novella/interaction/quick_menu_manager.gd")
 
 var failures: Array[String] = []
 
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v0.2 alpha tests passed.")
+		print("Novella v0.3 alpha tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -39,6 +47,9 @@ func _run_all() -> void:
 	_test_printer_manager()
 	_test_printer_views()
 	_test_v0_2_managers()
+	_test_v0_3_interaction_managers()
+	_test_v0_3_interaction_views()
+	_test_v0_3_commands_and_vm_state()
 	_test_vm_milestone_script()
 
 
@@ -73,9 +84,13 @@ func _test_variable_manager_and_commands() -> void:
 	var registry := CommandRegistry.new()
 	var basic := BasicCommands.new()
 	var presentation := PresentationCommands.new()
-	var managers := _make_v0_2_managers()
+	var interaction := InteractionCommands.new()
+	var managers := _make_v0_3_managers()
+	var save_manager: SaveManager = managers["save_manager"]
+	save_manager.enable_memory_storage(true)
 	basic.register_all(registry, variables)
 	presentation.register_all(registry, managers)
+	interaction.register_all(registry, managers)
 	_assert(registry.execute(&"var", "score = 1")["ok"], "@var should execute.")
 	_assert(registry.execute(&"set", "score += 4")["ok"], "@set should execute.")
 	_assert(variables.get_variable(&"score") == 5, "VariableManager should store command updates.")
@@ -84,6 +99,8 @@ func _test_variable_manager_and_commands() -> void:
 	_assert(registry.execute(&"mode", "nvl")["mode"] == &"nvl", "@mode should return a printer mode change.")
 	_assert(registry.execute(&"bg", "school transition:dissolve time:1.0")["id"] == "school", "@bg should update background state.")
 	_assert(registry.execute(&"play_music", "main_theme fade:1.0")["channel"] == "bgm", "@play_music should use BGM channel.")
+	_assert(registry.execute(&"auto", "on delay:0.1")["enabled"], "@auto should start auto advance.")
+	_assert(registry.execute(&"skip", "read")["mode"] == "read", "@skip should start read skip.")
 
 
 func _test_text_presentation() -> void:
@@ -160,6 +177,149 @@ func _test_v0_2_managers() -> void:
 	_assert(audio.play(&"voice", &"voice_001", {"wait": "true"})["channel"] == "voice", "AudioManager should play voice state.")
 	_assert(camera.move_camera({"pos": "10,20", "zoom": "1.2"})["zoom"] == Vector2(1.2, 1.2), "CameraDirector should parse zoom.")
 	_assert(camera.shake({"intensity": "0.4"})["ok"], "CameraDirector should shake camera.")
+
+
+func _test_v0_3_interaction_managers() -> void:
+	var variables := VariableManager.new()
+	variables.declare_variable(&"affinity", 7)
+	var choice_manager := ChoiceManager.new()
+	choice_manager.variable_manager = variables
+	var choices := choice_manager.build_choices([
+		{"text": "Talk ({affinity})", "condition": "affinity >= 5", "line": 10},
+		{"text": "Leave", "condition": "affinity < 5", "line": 11},
+	], 9)
+	_assert(choices.size() == 1, "ChoiceManager should hide choices whose condition is false.")
+	_assert(choices[0]["text"] == "Talk (7)", "ChoiceManager should interpolate choice text.")
+	_assert(choice_manager.select_choice(choices, 0)["ok"], "ChoiceManager should select an enabled choice.")
+
+	var save_manager := SaveManager.new()
+	save_manager.enable_memory_storage(true)
+	var saved := save_manager.save_game(&"slot1", {"variables": variables.snapshot()}, {"chapter": "intro"})
+	_assert(saved["ok"], "SaveManager should save to memory storage.")
+	_assert(save_manager.list_saves().size() == 1, "SaveManager should list memory saves.")
+	var loaded := save_manager.load_game(&"slot1")
+	_assert(loaded["state"]["variables"]["game"][&"affinity"] == 7, "SaveManager should load saved state.")
+	_assert(save_manager.quick_save({"value": 1})["slot"] == "quick", "SaveManager should write quick saves.")
+	_assert(save_manager.quick_load()["state"]["value"] == 1, "SaveManager should load quick saves.")
+	_assert(save_manager.delete_save(&"slot1")["deleted"], "SaveManager should delete memory saves.")
+
+	var rollback := RollbackManager.new()
+	rollback.configure({"limit": 2})
+	rollback.push_snapshot({"index": 1})
+	rollback.push_snapshot({"index": 2})
+	rollback.push_snapshot({"index": 3})
+	_assert(rollback.get_state()["snapshots"].size() == 2, "RollbackManager should enforce its snapshot limit.")
+	_assert(rollback.rollback()["state"]["index"] == 3, "RollbackManager should return the latest snapshot.")
+	rollback.prevent_rollback()
+	_assert(not rollback.can_rollback(), "RollbackManager should honor rollback prevention.")
+
+	var skip := SkipManager.new()
+	skip.mark_read("line-1")
+	_assert(skip.start_skip(&"read")["ok"], "SkipManager should start read skip mode.")
+	_assert(skip.should_skip("line-1"), "SkipManager should skip read lines.")
+	_assert(not skip.should_skip("line-2", true), "SkipManager should not skip unread lines in read mode.")
+	skip.start_skip(&"all")
+	_assert(skip.should_skip("line-2", true), "SkipManager should skip unread lines in all mode.")
+
+	var auto := AutoManager.new()
+	auto.start({"delay": "0.1", "per_character": "0.0"})
+	_assert(auto.advance(0.2, "Hello"), "AutoManager should advance after delay.")
+	auto.start({"delay": "0.1"})
+	_assert(not auto.advance(0.2, "Hello", true), "AutoManager should wait for voice when configured.")
+
+	var backlog := BacklogManager.new()
+	backlog.configure({"max_entries": 2})
+	backlog.add_dialogue("Ryone", "One", 1)
+	backlog.add_narration("Two", 2)
+	backlog.add_choice("Three", 3, 0)
+	_assert(backlog.get_entries().size() == 2, "BacklogManager should cap entries.")
+	_assert(backlog.get_entries()[1]["type"] == "choice", "BacklogManager should record choices.")
+
+	var quick := QuickMenuManager.new()
+	var called := {"value": false}
+	quick.register_action_handler(&"save", func(_context): called["value"] = true; return {"ok": true, "saved": true})
+	_assert(quick.dispatch_action(&"save")["saved"], "QuickMenuManager should dispatch registered handlers.")
+	_assert(called["value"], "QuickMenuManager should call registered handlers.")
+	quick.set_action_enabled(&"save", false)
+	_assert(quick.dispatch_action(&"save")["disabled"], "QuickMenuManager should honor disabled actions.")
+
+
+func _test_v0_3_interaction_views() -> void:
+	var choice_scene: PackedScene = load("res://addons/novella/interaction/ui/choice_menu.tscn")
+	var backlog_scene: PackedScene = load("res://addons/novella/interaction/ui/backlog_panel.tscn")
+	var quick_scene: PackedScene = load("res://addons/novella/interaction/ui/quick_menu.tscn")
+	var choice_view = choice_scene.instantiate()
+	var backlog_view = backlog_scene.instantiate()
+	var quick_view = quick_scene.instantiate()
+	choice_view.apply_choices([
+		{"index": 0, "text": "First", "enabled": true},
+		{"index": 1, "text": "Second", "disabled": true},
+	])
+	backlog_view.apply_entries([
+		{"type": "dialogue", "speaker": "Ryone", "text": "Hello"},
+		{"type": "choice", "text": "First"},
+	])
+	quick_view.apply_actions([
+		{"id": &"save", "label": "Save", "enabled": true, "visible": true},
+		{"id": &"load", "label": "Load", "enabled": false, "visible": true},
+	])
+	_assert(choice_view.get_node("ChoiceList").get_child_count() == 2, "Choice menu view should create buttons.")
+	_assert(backlog_view.get_node("TextLabel").text.contains("Ryone: Hello"), "Backlog panel should render dialogue lines.")
+	_assert(quick_view.get_node("ActionBar").get_child_count() == 2, "Quick menu view should create action buttons.")
+	choice_view.free()
+	backlog_view.free()
+	quick_view.free()
+
+
+func _test_v0_3_commands_and_vm_state() -> void:
+	var parser := Parser.new()
+	var ast = parser.parse(_v0_3_sample_script(), "v0_3_demo.nvs")
+	var variables := VariableManager.new()
+	var registry := CommandRegistry.new()
+	var basic := BasicCommands.new()
+	var presentation := PresentationCommands.new()
+	var interaction := InteractionCommands.new()
+	var managers := _make_v0_3_managers()
+	var save_manager: SaveManager = managers["save_manager"]
+	var rollback_manager: RollbackManager = managers["rollback_manager"]
+	var backlog_manager: BacklogManager = managers["backlog_manager"]
+	var choice_manager: ChoiceManager = managers["choice_manager"]
+	var skip_manager: SkipManager = managers["skip_manager"]
+	var auto_manager: AutoManager = managers["auto_manager"]
+	var quick_menu_manager: QuickMenuManager = managers["quick_menu_manager"]
+	var printer_manager: PrinterManager = managers["printer_manager"]
+	save_manager.enable_memory_storage(true)
+	choice_manager.variable_manager = variables
+	basic.register_all(registry, variables)
+	presentation.register_all(registry, managers)
+	interaction.register_all(registry, managers)
+
+	var vm := VM.new()
+	vm.variable_manager = variables
+	vm.command_registry = registry
+	vm.printer_manager = printer_manager
+	vm.choice_manager = choice_manager
+	vm.save_manager = save_manager
+	vm.rollback_manager = rollback_manager
+	vm.backlog_manager = backlog_manager
+	vm.skip_manager = skip_manager
+	vm.auto_manager = auto_manager
+	vm.quick_menu_manager = quick_menu_manager
+	vm.state_providers = _state_providers_from(managers)
+	vm.load_script(ast)
+	var transcript := vm.run()
+	_assert(not transcript.any(func(entry): return entry.get("type", "") == "error"), "VM v0.3 script should not emit runtime errors: %s" % [transcript])
+	_assert(backlog_manager.get_entries().size() >= 3, "VM should record dialogue and choices into backlog.")
+	_assert(rollback_manager.get_state()["snapshots"].size() > 0, "VM should push rollback snapshots.")
+	_assert(skip_manager.get_state()["read_lines"].size() > 0, "VM should mark dialogue lines as read.")
+	_assert(save_manager.quick_load()["state"]["variables"]["game"][&"affinity"] == 5, "Interaction commands should quick save VM state.")
+	_assert(auto_manager.enabled, "Interaction commands should enable auto mode.")
+	_assert(quick_menu_manager.visible == false, "Interaction commands should hide the quick menu.")
+
+	var snapshot := vm.snapshot_state()
+	variables.set_variable(&"affinity", 99)
+	vm.restore_state(snapshot)
+	_assert(variables.get_variable(&"affinity") == 5, "VM restore_state should restore variables.")
 
 
 func _test_vm_milestone_script() -> void:
@@ -239,6 +399,22 @@ label end_path:
     Ryone: Demo end."""
 
 
+func _v0_3_sample_script() -> String:
+	return """@var affinity = 0
+
+label start:
+    Ryone: Begin.
+    @set affinity += 5
+    @quick_save
+    @auto on delay:0.1
+    @skip read
+    menu:
+        "Continue {affinity}" if affinity >= 5:
+            Ryone: Chosen.
+    @quick_menu hide
+    Ryone: Done."""
+
+
 func _make_v0_2_managers() -> Dictionary:
 	return {
 		"printer_manager": PrinterManager.new(),
@@ -247,6 +423,34 @@ func _make_v0_2_managers() -> Dictionary:
 		"effect_manager": EffectManager.new(),
 		"audio_manager": AudioManager.new(),
 		"camera_director": CameraDirector.new(),
+	}
+
+
+func _make_v0_3_managers() -> Dictionary:
+	var managers := _make_v0_2_managers()
+	managers["choice_manager"] = ChoiceManager.new()
+	managers["save_manager"] = SaveManager.new()
+	managers["rollback_manager"] = RollbackManager.new()
+	managers["skip_manager"] = SkipManager.new()
+	managers["auto_manager"] = AutoManager.new()
+	managers["backlog_manager"] = BacklogManager.new()
+	managers["quick_menu_manager"] = QuickMenuManager.new()
+	return managers
+
+
+func _state_providers_from(managers: Dictionary) -> Dictionary:
+	return {
+		&"printer": managers["printer_manager"],
+		&"characters": managers["character_manager"],
+		&"background": managers["background_manager"],
+		&"effects": managers["effect_manager"],
+		&"audio": managers["audio_manager"],
+		&"camera": managers["camera_director"],
+		&"choices": managers["choice_manager"],
+		&"skip": managers["skip_manager"],
+		&"auto": managers["auto_manager"],
+		&"backlog": managers["backlog_manager"],
+		&"quick_menu": managers["quick_menu_manager"],
 	}
 
 

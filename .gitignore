@@ -43,6 +43,11 @@ temp/
 *.tmp
 
 # Local planning/requirement documents. Keep these on the machine, not in GitHub.
+Novella_*.md
+*_requirements.md
+*_requirement.md
+*_progress.md
+*_prd.md
 *_需求文档.md
 *_项目需求文档.md
 *_进度文档.md

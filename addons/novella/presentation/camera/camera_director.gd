@@ -62,6 +62,14 @@ func get_state() -> Dictionary:
 	return result
 
 
+func restore_state(next_state: Dictionary) -> void:
+	state = next_state.duplicate(true)
+	state.erase("ok")
+	state["pos"] = _coerce_vector2(state.get("pos", Vector2.ZERO), Vector2.ZERO)
+	state["zoom"] = _coerce_vector2(state.get("zoom", Vector2.ONE), Vector2.ONE)
+	state["rot"] = float(state.get("rot", 0.0))
+
+
 func _parse_vector2(value: Variant) -> Vector2:
 	if value is Vector2:
 		return value
@@ -81,3 +89,14 @@ func _parse_zoom(value: Variant) -> Vector2:
 		return Vector2(float(parts[0]), float(parts[1]))
 	var scalar := float(text)
 	return Vector2(scalar, scalar)
+
+
+func _coerce_vector2(value: Variant, fallback: Vector2) -> Vector2:
+	if value is Vector2:
+		return value
+	if value is Dictionary and value.has("x") and value.has("y"):
+		return Vector2(float(value["x"]), float(value["y"]))
+	var text := str(value)
+	if text.is_valid_float():
+		return Vector2(float(text), float(text))
+	return fallback

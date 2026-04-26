@@ -39,6 +39,10 @@ func get_state() -> Dictionary:
 	return {"active_effects": active_effects.duplicate(true)}
 
 
+func restore_state(state: Dictionary) -> void:
+	active_effects = state.get("active_effects", []).duplicate(true)
+
+
 func _default_effect(effect_name: StringName, target: String, params: Dictionary) -> Dictionary:
 	return {
 		"ok": true,
