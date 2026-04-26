@@ -7,7 +7,13 @@ const CommandRegistry := preload("res://addons/novella/script/command_registry.g
 const Parser := preload("res://addons/novella/script/parser.gd")
 const VM := preload("res://addons/novella/script/novella_vm.gd")
 const BasicCommands := preload("res://addons/novella/script/commands/basic_commands.gd")
+const PresentationCommands := preload("res://addons/novella/script/commands/presentation_commands.gd")
 const PrinterManager := preload("res://addons/novella/presentation/printer_manager.gd")
+const CharacterManager := preload("res://addons/novella/presentation/characters/character_manager.gd")
+const BackgroundManager := preload("res://addons/novella/presentation/backgrounds/background_manager.gd")
+const EffectManager := preload("res://addons/novella/presentation/effects/effect_manager.gd")
+const AudioManager := preload("res://addons/novella/presentation/audio/audio_manager.gd")
+const CameraDirector := preload("res://addons/novella/presentation/camera/camera_director.gd")
 
 var services: ServiceBus
 var events: EventBus
@@ -16,7 +22,13 @@ var commands: CommandRegistry
 var parser: Parser
 var vm: VM
 var basic_commands: BasicCommands
+var presentation_commands: PresentationCommands
 var printer_manager: PrinterManager
+var character_manager: CharacterManager
+var background_manager: BackgroundManager
+var effect_manager: EffectManager
+var audio_manager: AudioManager
+var camera_director: CameraDirector
 
 func _ready() -> void:
 	_bootstrap()
@@ -30,8 +42,22 @@ func _bootstrap() -> void:
 	parser = Parser.new()
 	vm = VM.new()
 	printer_manager = PrinterManager.new()
+	character_manager = CharacterManager.new()
+	background_manager = BackgroundManager.new()
+	effect_manager = EffectManager.new()
+	audio_manager = AudioManager.new()
+	camera_director = CameraDirector.new()
 	basic_commands = BasicCommands.new()
+	presentation_commands = PresentationCommands.new()
 	basic_commands.register_all(commands, variables)
+	presentation_commands.register_all(commands, {
+		"printer_manager": printer_manager,
+		"character_manager": character_manager,
+		"background_manager": background_manager,
+		"effect_manager": effect_manager,
+		"audio_manager": audio_manager,
+		"camera_director": camera_director,
+	})
 
 	services.register_service(&"event_bus", events, true)
 	services.register_service(&"variable_manager", variables, true)
@@ -39,6 +65,11 @@ func _bootstrap() -> void:
 	services.register_service(&"script_parser", parser, true)
 	services.register_service(&"vm", vm, true)
 	services.register_service(&"printer_manager", printer_manager, true)
+	services.register_service(&"character_manager", character_manager, true)
+	services.register_service(&"background_manager", background_manager, true)
+	services.register_service(&"effect_manager", effect_manager, true)
+	services.register_service(&"audio_manager", audio_manager, true)
+	services.register_service(&"camera_director", camera_director, true)
 
 	vm.variable_manager = variables
 	vm.command_registry = commands

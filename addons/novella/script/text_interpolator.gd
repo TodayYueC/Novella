@@ -26,6 +26,8 @@ func interpolate(text: String, variable_source: Variant) -> String:
 
 
 func _evaluate_placeholder(expression: String, variable_source: Variant) -> String:
+	if _is_rich_text_or_control_tag(expression):
+		return "{%s}" % expression
 	if expression.begins_with("if "):
 		return _evaluate_conditional(expression.substr(3).strip_edges(), variable_source)
 	var value: Variant = evaluator.evaluate(expression, variable_source, "")
@@ -41,3 +43,14 @@ func _evaluate_conditional(expression: String, variable_source: Variant) -> Stri
 	var true_text := expression.substr(question + 1, colon - question - 1).strip_edges()
 	var false_text := expression.substr(colon + 1).strip_edges()
 	return true_text if bool(evaluator.evaluate(condition, variable_source, false)) else false_text
+
+
+func _is_rich_text_or_control_tag(expression: String) -> bool:
+	var tag := expression.strip_edges()
+	if tag.begins_with("/"):
+		tag = tag.substr(1)
+	var tag_name := tag
+	var equals := tag.find("=")
+	if equals != -1:
+		tag_name = tag.substr(0, equals)
+	return ["b", "i", "u", "s", "color", "size", "font", "cps", "w", "nw", "fast", "rb", "a", "wave", "shake", "rainbow", "img"].has(tag_name)

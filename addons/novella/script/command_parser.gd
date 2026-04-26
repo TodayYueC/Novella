@@ -7,11 +7,12 @@ func parse_arguments(raw_arguments: String) -> Dictionary:
 	var positional: Array = []
 	var named: Dictionary = {}
 	for token in tokens:
-		var colon := token.find(":")
+		var token_text := str(token)
+		var colon: int = token_text.find(":")
 		if colon > 0:
-			named[StringName(token.substr(0, colon).strip_edges())] = token.substr(colon + 1).strip_edges()
+			named[StringName(token_text.substr(0, colon).strip_edges())] = token_text.substr(colon + 1).strip_edges()
 		else:
-			positional.append(token)
+			positional.append(token_text)
 	return {
 		"positional": positional,
 		"named": named,

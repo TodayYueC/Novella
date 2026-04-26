@@ -89,13 +89,13 @@ func _execute_node(node) -> Dictionary:
 		&"dialogue":
 			var text := interpolator.interpolate(node.text, variable_manager)
 			var presentation := _present_dialogue(node.speaker, text)
-			transcript.append({"type": "dialogue", "speaker": node.speaker, "text": text, "line": node.line, "presentation": presentation})
+			transcript.append({"type": "dialogue", "speaker": node.speaker, "text": text, "line": node.line, "presentation": presentation.duplicate(true)})
 			dialogue_requested.emit(node.speaker, text, node.line)
 			return {"ok": true}
 		&"narration":
 			var text := interpolator.interpolate(node.text, variable_manager)
 			var presentation := _present_narration(text)
-			transcript.append({"type": "narration", "text": text, "line": node.line, "presentation": presentation})
+			transcript.append({"type": "narration", "text": text, "line": node.line, "presentation": presentation.duplicate(true)})
 			narration_requested.emit(text, node.line)
 			return {"ok": true}
 		&"command":
