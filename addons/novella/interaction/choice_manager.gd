@@ -10,6 +10,7 @@ signal choice_selected(choice: Dictionary, index: int, line: int)
 signal choice_timeout(default_index: int, line: int)
 
 var variable_manager: Variant = null
+var localization_manager: Variant = null
 var include_disabled_choices: bool = false
 var timeout_seconds: float = 0.0
 var timeout_default_index: int = -1
@@ -38,11 +39,13 @@ func build_choices(raw_choices: Array, line: int = 0, p_variable_manager: Varian
 		if not enabled and not include_disabled_choices:
 			continue
 		var raw_text := _choice_text(raw_choice)
-		var text := _interpolator.interpolate(raw_text, source) if source != null else raw_text
+		var localized_text := _localize_text(raw_text, source)
+		var text := _interpolator.interpolate(localized_text, source) if source != null else localized_text
 		result.append({
 			"index": index,
 			"text": text,
 			"raw_text": raw_text,
+			"localized_text": localized_text,
 			"condition": condition,
 			"enabled": enabled,
 			"disabled": not enabled,
@@ -117,6 +120,12 @@ func _choice_line(choice: Variant, fallback: int) -> int:
 	if choice is Dictionary:
 		return int(choice.get("line", fallback))
 	return int(choice.line)
+
+
+func _localize_text(text: String, source: Variant) -> String:
+	if localization_manager != null and localization_manager.has_method("localize_text"):
+		return localization_manager.localize_text(text, source)
+	return text
 
 
 func _as_bool(value: Variant) -> bool:

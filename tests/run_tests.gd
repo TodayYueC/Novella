@@ -9,6 +9,7 @@ const CommandRegistry := preload("res://addons/novella/script/command_registry.g
 const BasicCommands := preload("res://addons/novella/script/commands/basic_commands.gd")
 const PresentationCommands := preload("res://addons/novella/script/commands/presentation_commands.gd")
 const InteractionCommands := preload("res://addons/novella/script/commands/interaction_commands.gd")
+const MetaCommands := preload("res://addons/novella/script/commands/meta_commands.gd")
 const VM := preload("res://addons/novella/script/novella_vm.gd")
 const RichTextParser := preload("res://addons/novella/presentation/rich_text_parser.gd")
 const TypewriterEffect := preload("res://addons/novella/presentation/typewriter_effect.gd")
@@ -31,13 +32,16 @@ const TimelineModel := preload("res://addons/novella/editor/timeline_model.gd")
 const ScriptDiagnostics := preload("res://addons/novella/editor/script_diagnostics.gd")
 const TemplateLibrary := preload("res://addons/novella/editor/script_template_library.gd")
 const AssetIndex := preload("res://addons/novella/editor/asset_index.gd")
+const LocalizationManager := preload("res://addons/novella/meta/localization_manager.gd")
+const GalleryManager := preload("res://addons/novella/meta/gallery_manager.gd")
+const AchievementManager := preload("res://addons/novella/meta/achievement_manager.gd")
 
 var failures: Array[String] = []
 
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v0.4 alpha tests passed.")
+		print("Novella v0.5 alpha tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -58,6 +62,9 @@ func _run_all() -> void:
 	_test_v0_3_commands_and_vm_state()
 	_test_v0_4_editor_models()
 	_test_v0_4_editor_dock()
+	_test_v0_5_meta_managers()
+	_test_v0_5_meta_views()
+	_test_v0_5_commands_and_localized_vm()
 	_test_vm_milestone_script()
 
 
@@ -93,12 +100,15 @@ func _test_variable_manager_and_commands() -> void:
 	var basic := BasicCommands.new()
 	var presentation := PresentationCommands.new()
 	var interaction := InteractionCommands.new()
-	var managers := _make_v0_3_managers()
+	var meta := MetaCommands.new()
+	var managers := _make_v0_5_managers()
+	managers["variable_manager"] = variables
 	var save_manager: SaveManager = managers["save_manager"]
 	save_manager.enable_memory_storage(true)
 	basic.register_all(registry, variables)
 	presentation.register_all(registry, managers)
 	interaction.register_all(registry, managers)
+	meta.register_all(registry, managers)
 	_assert(registry.execute(&"var", "score = 1")["ok"], "@var should execute.")
 	_assert(registry.execute(&"set", "score += 4")["ok"], "@set should execute.")
 	_assert(variables.get_variable(&"score") == 5, "VariableManager should store command updates.")
@@ -109,6 +119,9 @@ func _test_variable_manager_and_commands() -> void:
 	_assert(registry.execute(&"play_music", "main_theme fade:1.0")["channel"] == "bgm", "@play_music should use BGM channel.")
 	_assert(registry.execute(&"auto", "on delay:0.1")["enabled"], "@auto should start auto advance.")
 	_assert(registry.execute(&"skip", "read")["mode"] == "read", "@skip should start read skip.")
+	_assert(registry.execute(&"locale", "ja")["locale"] == "ja", "@locale should change language.")
+	_assert(registry.execute(&"gallery", "unlock cg_school title:School asset:school.png")["unlocked"], "@gallery should unlock gallery items.")
+	_assert(registry.execute(&"achievement", "unlock first_step title:First")["unlocked"], "@achievement should unlock achievements.")
 
 
 func _test_text_presentation() -> void:
@@ -384,6 +397,110 @@ func _test_v0_4_editor_dock() -> void:
 	dock.free()
 
 
+func _test_v0_5_meta_managers() -> void:
+	var variables := VariableManager.new()
+	variables.declare_variable(&"player", "Yue")
+	var localization := LocalizationManager.new()
+	localization.add_translation(&"en", &"hello", "Hello {player}.")
+	localization.add_translation(&"ja", &"hello", "こんにちは {player}.")
+	localization.set_locale(&"ja")
+	_assert(localization.translate(&"hello", variables) == "こんにちは Yue.", "LocalizationManager should translate and format text.")
+	_assert(localization.localize_text("$hello", variables).contains("Yue"), "LocalizationManager should localize $key text.")
+	_assert(localization.translate(&"missing_key") == "missing_key", "LocalizationManager should return missing keys as text.")
+	_assert(localization.get_missing_keys().has("ja"), "LocalizationManager should record missing translations.")
+
+	var gallery := GalleryManager.new()
+	gallery.register_item(&"cg_school", {"type": "cg", "title": "School", "asset": "school.png"})
+	_assert(not gallery.is_unlocked(&"cg_school"), "GalleryManager should register locked gallery items.")
+	gallery.unlock_item(&"cg_school")
+	gallery.unlock_replay(&"intro_replay", &"start", {"title": "Intro"})
+	_assert(gallery.is_unlocked(&"cg_school"), "GalleryManager should unlock gallery items.")
+	_assert(gallery.list_items("replay", false).size() == 1, "GalleryManager should unlock replay entries.")
+	gallery.mark_viewed(&"cg_school")
+	_assert(gallery.get_item(&"cg_school")["viewed"], "GalleryManager should mark viewed items.")
+
+	var achievements := AchievementManager.new()
+	achievements.register_achievement(&"reader", {"title": "Reader", "target": 3})
+	achievements.add_progress(&"reader", 1)
+	_assert(not achievements.is_unlocked(&"reader"), "AchievementManager should keep partial achievements locked.")
+	achievements.add_progress(&"reader", 2)
+	_assert(achievements.is_unlocked(&"reader"), "AchievementManager should unlock achievements at target progress.")
+	variables.declare_variable(&"affinity", 5)
+	achievements.register_achievement(&"friend", {"condition": "affinity >= 5"})
+	_assert(achievements.evaluate_conditions(variables).size() == 1, "AchievementManager should unlock condition achievements.")
+
+
+func _test_v0_5_meta_views() -> void:
+	var language_scene: PackedScene = load("res://addons/novella/meta/ui/language_menu.tscn")
+	var gallery_scene: PackedScene = load("res://addons/novella/meta/ui/gallery.tscn")
+	var achievement_scene: PackedScene = load("res://addons/novella/meta/ui/achievement_list.tscn")
+	var language_view = language_scene.instantiate()
+	var gallery_view = gallery_scene.instantiate()
+	var achievement_view = achievement_scene.instantiate()
+	language_view.apply_locales(["en", "ja"], &"ja")
+	gallery_view.apply_items([
+		{"id": "cg_school", "title": "School", "unlocked": true},
+		{"id": "cg_secret", "title": "Secret", "unlocked": false},
+	])
+	achievement_view.apply_achievements([
+		{"id": "reader", "title": "Reader", "progress": 3, "target": 3, "unlocked": true},
+		{"id": "collector", "title": "Collector", "progress": 1, "target": 5, "unlocked": false},
+	])
+	_assert(language_view.get_node("LocaleOptions").item_count == 2, "Language menu view should render locale options.")
+	_assert(gallery_view.get_node("ItemList").item_count == 2, "Gallery view should render gallery items.")
+	_assert(achievement_view.get_node("ItemList").item_count == 2, "Achievement view should render achievements.")
+	language_view.free()
+	gallery_view.free()
+	achievement_view.free()
+
+
+func _test_v0_5_commands_and_localized_vm() -> void:
+	var parser := Parser.new()
+	var ast = parser.parse(_v0_5_sample_script(), "v0_5_demo.nvs")
+	var variables := VariableManager.new()
+	var registry := CommandRegistry.new()
+	var basic := BasicCommands.new()
+	var presentation := PresentationCommands.new()
+	var interaction := InteractionCommands.new()
+	var meta := MetaCommands.new()
+	var managers := _make_v0_5_managers()
+	managers["variable_manager"] = variables
+	var localization: LocalizationManager = managers["localization_manager"]
+	var gallery: GalleryManager = managers["gallery_manager"]
+	var achievements: AchievementManager = managers["achievement_manager"]
+	var choice_manager: ChoiceManager = managers["choice_manager"]
+	var printer_manager: PrinterManager = managers["printer_manager"]
+	localization.add_translation(&"en", &"line.greeting", "Hello {player}.")
+	localization.add_translation(&"en", &"choice.unlock", "Unlock memory")
+	localization.add_translation(&"ja", &"line.greeting", "やあ {player}.")
+	localization.add_translation(&"ja", &"choice.unlock", "思い出を開く")
+	choice_manager.variable_manager = variables
+	choice_manager.localization_manager = localization
+	basic.register_all(registry, variables)
+	presentation.register_all(registry, managers)
+	interaction.register_all(registry, managers)
+	meta.register_all(registry, managers)
+
+	var vm := VM.new()
+	vm.variable_manager = variables
+	vm.command_registry = registry
+	vm.printer_manager = printer_manager
+	vm.choice_manager = choice_manager
+	vm.localization_manager = localization
+	vm.gallery_manager = gallery
+	vm.achievement_manager = achievements
+	vm.state_providers = _state_providers_from(managers)
+	vm.load_script(ast)
+	var transcript := vm.run()
+	_assert(not transcript.any(func(entry): return entry.get("type", "") == "error"), "VM v0.5 script should not emit runtime errors: %s" % [transcript])
+	_assert(transcript.any(func(entry): return str(entry.get("text", "")).contains("やあ Yue")), "VM should localize dialogue text.")
+	_assert(transcript.any(func(entry): return str(entry.get("text", "")).contains("思い出を開く")), "VM should localize choice text.")
+	_assert(gallery.is_unlocked(&"cg_school"), "Meta commands should unlock gallery items.")
+	_assert(gallery.is_unlocked(&"intro_replay"), "Meta commands should unlock replay items.")
+	_assert(achievements.is_unlocked(&"first_memory"), "Meta commands should unlock achievements.")
+	_assert(achievements.is_unlocked(&"collector"), "Meta commands should progress achievements.")
+
+
 func _test_vm_milestone_script() -> void:
 	var parser := Parser.new()
 	var ast = parser.parse(_sample_script(), "v0_2_demo.nvs")
@@ -498,6 +615,23 @@ label leave_path:
     Ryone: See you."""
 
 
+func _v0_5_sample_script() -> String:
+	return """@var player = "Yue"
+
+label start:
+    @locale ja
+    Ryone: $line.greeting
+    menu:
+        "$choice.unlock":
+            @gallery unlock cg_school type:cg title:School asset:school.png
+            @replay unlock intro_replay label:start title:Intro
+            @achievement register collector title:Collector target:2
+            @achievement progress collector amount:1
+            @achievement progress collector amount:1
+            @achievement unlock first_memory title:FirstMemory
+            Ryone: Done."""
+
+
 func _make_v0_2_managers() -> Dictionary:
 	return {
 		"printer_manager": PrinterManager.new(),
@@ -521,8 +655,17 @@ func _make_v0_3_managers() -> Dictionary:
 	return managers
 
 
+func _make_v0_5_managers() -> Dictionary:
+	var managers := _make_v0_3_managers()
+	managers["localization_manager"] = LocalizationManager.new()
+	managers["gallery_manager"] = GalleryManager.new()
+	managers["achievement_manager"] = AchievementManager.new()
+	managers["variable_manager"] = VariableManager.new()
+	return managers
+
+
 func _state_providers_from(managers: Dictionary) -> Dictionary:
-	return {
+	var providers := {
 		&"printer": managers["printer_manager"],
 		&"characters": managers["character_manager"],
 		&"background": managers["background_manager"],
@@ -535,6 +678,13 @@ func _state_providers_from(managers: Dictionary) -> Dictionary:
 		&"backlog": managers["backlog_manager"],
 		&"quick_menu": managers["quick_menu_manager"],
 	}
+	if managers.has("localization_manager"):
+		providers[&"localization"] = managers["localization_manager"]
+	if managers.has("gallery_manager"):
+		providers[&"gallery"] = managers["gallery_manager"]
+	if managers.has("achievement_manager"):
+		providers[&"achievements"] = managers["achievement_manager"]
+	return providers
 
 
 func _known_commands_for_tests() -> Array:
@@ -550,6 +700,8 @@ func _known_commands_for_tests() -> Array:
 		&"skip", &"prevent_skip", &"allow_skip",
 		&"auto", &"prevent_auto", &"allow_auto",
 		&"backlog_clear", &"choice_timeout", &"quick_menu", &"input",
+		&"locale", &"language", &"translation", &"tr_var",
+		&"gallery", &"replay", &"achievement", &"achieve", &"meta_check",
 	]
 
 

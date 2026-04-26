@@ -9,6 +9,7 @@ const VM := preload("res://addons/novella/script/novella_vm.gd")
 const BasicCommands := preload("res://addons/novella/script/commands/basic_commands.gd")
 const PresentationCommands := preload("res://addons/novella/script/commands/presentation_commands.gd")
 const InteractionCommands := preload("res://addons/novella/script/commands/interaction_commands.gd")
+const MetaCommands := preload("res://addons/novella/script/commands/meta_commands.gd")
 const PrinterManager := preload("res://addons/novella/presentation/printer_manager.gd")
 const CharacterManager := preload("res://addons/novella/presentation/characters/character_manager.gd")
 const BackgroundManager := preload("res://addons/novella/presentation/backgrounds/background_manager.gd")
@@ -22,6 +23,9 @@ const SkipManager := preload("res://addons/novella/interaction/skip_manager.gd")
 const AutoManager := preload("res://addons/novella/interaction/auto_manager.gd")
 const BacklogManager := preload("res://addons/novella/state/backlog_manager.gd")
 const QuickMenuManager := preload("res://addons/novella/interaction/quick_menu_manager.gd")
+const LocalizationManager := preload("res://addons/novella/meta/localization_manager.gd")
+const GalleryManager := preload("res://addons/novella/meta/gallery_manager.gd")
+const AchievementManager := preload("res://addons/novella/meta/achievement_manager.gd")
 
 var services: ServiceBus
 var events: EventBus
@@ -32,6 +36,7 @@ var vm: VM
 var basic_commands: BasicCommands
 var presentation_commands: PresentationCommands
 var interaction_commands: InteractionCommands
+var meta_commands: MetaCommands
 var printer_manager: PrinterManager
 var character_manager: CharacterManager
 var background_manager: BackgroundManager
@@ -45,6 +50,9 @@ var skip_manager: SkipManager
 var auto_manager: AutoManager
 var backlog_manager: BacklogManager
 var quick_menu_manager: QuickMenuManager
+var localization_manager: LocalizationManager
+var gallery_manager: GalleryManager
+var achievement_manager: AchievementManager
 
 func _ready() -> void:
 	_bootstrap()
@@ -70,10 +78,15 @@ func _bootstrap() -> void:
 	auto_manager = AutoManager.new()
 	backlog_manager = BacklogManager.new()
 	quick_menu_manager = QuickMenuManager.new()
+	localization_manager = LocalizationManager.new()
+	gallery_manager = GalleryManager.new()
+	achievement_manager = AchievementManager.new()
 	basic_commands = BasicCommands.new()
 	presentation_commands = PresentationCommands.new()
 	interaction_commands = InteractionCommands.new()
+	meta_commands = MetaCommands.new()
 	choice_manager.variable_manager = variables
+	choice_manager.localization_manager = localization_manager
 	basic_commands.register_all(commands, variables)
 	presentation_commands.register_all(commands, {
 		"printer_manager": printer_manager,
@@ -91,6 +104,12 @@ func _bootstrap() -> void:
 		"auto_manager": auto_manager,
 		"backlog_manager": backlog_manager,
 		"quick_menu_manager": quick_menu_manager,
+	})
+	meta_commands.register_all(commands, {
+		"localization_manager": localization_manager,
+		"gallery_manager": gallery_manager,
+		"achievement_manager": achievement_manager,
+		"variable_manager": variables,
 	})
 	_register_quick_menu_handlers()
 
@@ -112,6 +131,9 @@ func _bootstrap() -> void:
 	services.register_service(&"auto_manager", auto_manager, true)
 	services.register_service(&"backlog_manager", backlog_manager, true)
 	services.register_service(&"quick_menu_manager", quick_menu_manager, true)
+	services.register_service(&"localization_manager", localization_manager, true)
+	services.register_service(&"gallery_manager", gallery_manager, true)
+	services.register_service(&"achievement_manager", achievement_manager, true)
 
 	vm.variable_manager = variables
 	vm.command_registry = commands
@@ -123,6 +145,9 @@ func _bootstrap() -> void:
 	vm.auto_manager = auto_manager
 	vm.backlog_manager = backlog_manager
 	vm.quick_menu_manager = quick_menu_manager
+	vm.localization_manager = localization_manager
+	vm.gallery_manager = gallery_manager
+	vm.achievement_manager = achievement_manager
 	vm.state_providers = {
 		&"printer": printer_manager,
 		&"characters": character_manager,
@@ -135,6 +160,9 @@ func _bootstrap() -> void:
 		&"auto": auto_manager,
 		&"backlog": backlog_manager,
 		&"quick_menu": quick_menu_manager,
+		&"localization": localization_manager,
+		&"gallery": gallery_manager,
+		&"achievements": achievement_manager,
 	}
 
 
@@ -170,6 +198,8 @@ func _register_quick_menu_handlers() -> void:
 	quick_menu_manager.register_action_handler(&"save", Callable(self, "_quick_action_save"))
 	quick_menu_manager.register_action_handler(&"load", Callable(self, "_quick_action_load"))
 	quick_menu_manager.register_action_handler(&"log", Callable(self, "_quick_action_log"))
+	quick_menu_manager.register_action_handler(&"gallery", Callable(self, "_quick_action_gallery"))
+	quick_menu_manager.register_action_handler(&"achievements", Callable(self, "_quick_action_achievements"))
 	quick_menu_manager.register_action_handler(&"rollback", Callable(self, "_quick_action_rollback"))
 
 
@@ -196,6 +226,14 @@ func _quick_action_load(_context: Dictionary) -> Dictionary:
 
 func _quick_action_log(_context: Dictionary) -> Dictionary:
 	return {"ok": true, "entries": backlog_manager.get_entries()}
+
+
+func _quick_action_gallery(_context: Dictionary) -> Dictionary:
+	return {"ok": true, "items": gallery_manager.list_items("", true)}
+
+
+func _quick_action_achievements(_context: Dictionary) -> Dictionary:
+	return {"ok": true, "achievements": achievement_manager.list_achievements(false)}
 
 
 func _quick_action_rollback(_context: Dictionary) -> Dictionary:

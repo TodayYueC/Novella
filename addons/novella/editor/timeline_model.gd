@@ -99,6 +99,8 @@ func _category_for_command(command_name: StringName) -> StringName:
 		return &"effect"
 	if [&"mode", &"nvl_clear"].has(command_name):
 		return &"printer"
+	if [&"locale", &"language", &"translation", &"tr_var", &"gallery", &"replay", &"achievement", &"achieve", &"meta_check"].has(command_name):
+		return &"meta"
 	if String(command_name).contains("save") or [&"load", &"quick_load", &"rollback", &"skip", &"auto", &"quick_menu", &"input"].has(command_name):
 		return &"interaction"
 	return &"command"

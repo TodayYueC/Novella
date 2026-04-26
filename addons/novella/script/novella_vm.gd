@@ -27,6 +27,9 @@ var skip_manager: Variant = null
 var auto_manager: Variant = null
 var save_manager: Variant = null
 var quick_menu_manager: Variant = null
+var localization_manager: Variant = null
+var gallery_manager: Variant = null
+var achievement_manager: Variant = null
 var state_providers: Dictionary = {}
 var choice_strategy: Callable = Callable()
 
@@ -99,7 +102,8 @@ func _execute_node(node) -> Dictionary:
 			return {"ok": true}
 		&"dialogue":
 			_push_rollback_snapshot(node)
-			var text := interpolator.interpolate(node.text, variable_manager)
+			var localized_text := _localize_text(node.text)
+			var text := interpolator.interpolate(localized_text, variable_manager)
 			var presentation := _present_dialogue(node.speaker, text)
 			_mark_line_read(node)
 			if backlog_manager != null and backlog_manager.has_method("add_dialogue"):
@@ -109,7 +113,8 @@ func _execute_node(node) -> Dictionary:
 			return {"ok": true}
 		&"narration":
 			_push_rollback_snapshot(node)
-			var text := interpolator.interpolate(node.text, variable_manager)
+			var localized_text := _localize_text(node.text)
+			var text := interpolator.interpolate(localized_text, variable_manager)
 			var presentation := _present_narration(text)
 			_mark_line_read(node)
 			if backlog_manager != null and backlog_manager.has_method("add_narration"):
@@ -182,7 +187,7 @@ func _execute_menu(node) -> Dictionary:
 		if bool(selection.get("ok", false)):
 			selected_index = int(selection.get("index", selected_index))
 	var selected = node.choices[selected_index]
-	var selected_text := interpolator.interpolate(selected.text, variable_manager)
+	var selected_text := interpolator.interpolate(_localize_text(selected.text), variable_manager)
 	choice_requested.emit(prepared_choices, selected_index, node.line)
 	if backlog_manager != null and backlog_manager.has_method("add_choice"):
 		backlog_manager.add_choice(selected_text, selected.line, selected_index)
@@ -221,6 +226,9 @@ func _context_for(node) -> Dictionary:
 		"auto_manager": auto_manager,
 		"save_manager": save_manager,
 		"quick_menu_manager": quick_menu_manager,
+		"localization_manager": localization_manager,
+		"gallery_manager": gallery_manager,
+		"achievement_manager": achievement_manager,
 		"node": node,
 		"line": node.line,
 	}
@@ -265,6 +273,12 @@ func _present_narration(text: String) -> Dictionary:
 	if printer_manager != null and printer_manager.has_method("present_narration"):
 		return printer_manager.present_narration(text)
 	return {}
+
+
+func _localize_text(text: String) -> String:
+	if localization_manager != null and localization_manager.has_method("localize_text"):
+		return localization_manager.localize_text(text, variable_manager)
+	return text
 
 
 func _emit_error(message: String, line: int) -> void:

@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/novella/meta/ui/language_menu_view.gd" id="1_lang"]
+
+[node name="LanguageMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 10
+anchor_right = 1.0
+script = ExtResource("1_lang")

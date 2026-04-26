@@ -67,4 +67,6 @@ func _known_commands() -> Array:
 		&"skip", &"prevent_skip", &"allow_skip",
 		&"auto", &"prevent_auto", &"allow_auto",
 		&"backlog_clear", &"choice_timeout", &"quick_menu", &"input",
+		&"locale", &"language", &"translation", &"tr_var",
+		&"gallery", &"replay", &"achievement", &"achieve", &"meta_check",
 	]

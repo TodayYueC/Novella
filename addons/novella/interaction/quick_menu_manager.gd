@@ -12,6 +12,8 @@ var actions: Array = [
 	{"id": &"save", "label": "Save", "enabled": true, "visible": true},
 	{"id": &"load", "label": "Load", "enabled": true, "visible": true},
 	{"id": &"log", "label": "Log", "enabled": true, "visible": true},
+	{"id": &"gallery", "label": "Gallery", "enabled": true, "visible": true},
+	{"id": &"achievements", "label": "Achievements", "enabled": true, "visible": true},
 	{"id": &"rollback", "label": "Rollback", "enabled": true, "visible": true},
 	{"id": &"config", "label": "Config", "enabled": true, "visible": true},
 	{"id": &"title", "label": "Title", "enabled": true, "visible": true},
