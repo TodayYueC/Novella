@@ -25,13 +25,19 @@ const SkipManager := preload("res://addons/novella/interaction/skip_manager.gd")
 const AutoManager := preload("res://addons/novella/interaction/auto_manager.gd")
 const BacklogManager := preload("res://addons/novella/state/backlog_manager.gd")
 const QuickMenuManager := preload("res://addons/novella/interaction/quick_menu_manager.gd")
+const EditorController := preload("res://addons/novella/editor/editor_controller.gd")
+const OutlineBuilder := preload("res://addons/novella/editor/script_outline_builder.gd")
+const TimelineModel := preload("res://addons/novella/editor/timeline_model.gd")
+const ScriptDiagnostics := preload("res://addons/novella/editor/script_diagnostics.gd")
+const TemplateLibrary := preload("res://addons/novella/editor/script_template_library.gd")
+const AssetIndex := preload("res://addons/novella/editor/asset_index.gd")
 
 var failures: Array[String] = []
 
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v0.3 alpha tests passed.")
+		print("Novella v0.4 alpha tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -50,6 +56,8 @@ func _run_all() -> void:
 	_test_v0_3_interaction_managers()
 	_test_v0_3_interaction_views()
 	_test_v0_3_commands_and_vm_state()
+	_test_v0_4_editor_models()
+	_test_v0_4_editor_dock()
 	_test_vm_milestone_script()
 
 
@@ -322,6 +330,60 @@ func _test_v0_3_commands_and_vm_state() -> void:
 	_assert(variables.get_variable(&"affinity") == 5, "VM restore_state should restore variables.")
 
 
+func _test_v0_4_editor_models() -> void:
+	var controller := EditorController.new()
+	var analysis := controller.analyze_source(_v0_4_sample_script(), "res://story/chapter_01.nvs", _known_commands_for_tests())
+	_assert(analysis["ok"], "EditorController should analyze a valid script without errors: %s" % [analysis["diagnostics"]])
+	var outline: Dictionary = analysis["outline"]
+	var timeline: Dictionary = analysis["timeline"]
+	var diagnostics: Dictionary = analysis["diagnostics"]
+	_assert(outline["stats"]["labels"] == 3, "OutlineBuilder should count labels.")
+	_assert(outline["stats"]["choices"] == 2, "OutlineBuilder should count menu choices.")
+	_assert(outline["items"].any(func(item): return item.get("kind", "") == "choice" and str(item.get("title", "")).contains("Stay")), "OutlineBuilder should include choices.")
+	_assert(timeline["counts"]["background"] >= 1, "TimelineModel should categorize background commands.")
+	_assert(timeline["counts"]["character"] >= 1, "TimelineModel should categorize character commands.")
+	_assert(timeline["counts"]["choice"] == 1, "TimelineModel should include menu events.")
+	_assert(timeline["segments"].size() == 3, "TimelineModel should create label segments.")
+	_assert(not diagnostics["has_errors"], "ScriptDiagnostics should report no errors for valid flow.")
+
+	var bad_analysis := controller.analyze_source("label start:\n    jump missing\n    @unknown value\n", "bad.nvs", _known_commands_for_tests())
+	_assert(bad_analysis["diagnostics"]["has_errors"], "ScriptDiagnostics should catch missing jump targets.")
+	_assert(bad_analysis["diagnostics"]["issues"].any(func(issue): return str(issue.get("message", "")).contains("Unknown command")), "ScriptDiagnostics should warn about unknown commands.")
+
+	var template_library := TemplateLibrary.new()
+	var rendered := template_library.render(&"adv_scene", {"character": "Mira", "background": "roof"})
+	_assert(rendered.contains("Mira:"), "TemplateLibrary should replace character placeholders.")
+	_assert(rendered.contains("@bg roof"), "TemplateLibrary should replace background placeholders.")
+	_assert(template_library.list_templates().size() >= 4, "TemplateLibrary should expose starter templates.")
+
+	var indexer := AssetIndex.new()
+	var index := indexer.build([
+		"res://art/backgrounds/school.png",
+		"res://art/characters/ryone/happy.png",
+		"res://audio/bgm/theme.ogg",
+		"res://story/chapter_01.nvs",
+		"res://ui/title.tscn",
+	])
+	_assert(index["backgrounds"].size() == 1, "AssetIndex should classify background art.")
+	_assert(index["characters"].size() == 1, "AssetIndex should classify character art.")
+	_assert(index["audio"].size() == 1, "AssetIndex should classify audio.")
+	_assert(indexer.suggest_for_command(index, &"char").size() == 1, "AssetIndex should suggest character assets for @char.")
+
+
+func _test_v0_4_editor_dock() -> void:
+	var dock_scene: PackedScene = load("res://addons/novella/editor/ui/novella_editor_dock.tscn")
+	var dock = dock_scene.instantiate()
+	var controller := EditorController.new()
+	var analysis := controller.analyze_source(_v0_4_sample_script(), "res://story/chapter_01.nvs", _known_commands_for_tests())
+	dock.apply_templates(controller.templates.list_templates())
+	dock.apply_analysis(analysis)
+	_assert(dock.get_node("Root/Tabs/Outline").get_root().get_child_count() > 0, "Editor dock should render outline rows.")
+	_assert(dock.get_node("Root/Tabs/Timeline").get_root().get_child_count() > 0, "Editor dock should render timeline rows.")
+	_assert(dock.get_node("Root/Tabs/Diagnostics").text.contains("Errors: 0"), "Editor dock should render diagnostic counts.")
+	_assert(dock.get_node("Root/Tabs/Templates").item_count >= 4, "Editor dock should render template entries.")
+	dock.free()
+
+
 func _test_vm_milestone_script() -> void:
 	var parser := Parser.new()
 	var ast = parser.parse(_sample_script(), "v0_2_demo.nvs")
@@ -415,6 +477,27 @@ label start:
     Ryone: Done."""
 
 
+func _v0_4_sample_script() -> String:
+	return """label start:
+    @bg school_day transition:dissolve
+    @char Ryone uniform happy pos:left
+    Ryone: Welcome.
+    menu:
+        "Stay":
+            jump stay_path
+        "Leave":
+            jump leave_path
+
+label stay_path:
+    @play_music main_theme
+    Ryone: Thank you.
+    jump leave_path
+
+label leave_path:
+    @camera_reset
+    Ryone: See you."""
+
+
 func _make_v0_2_managers() -> Dictionary:
 	return {
 		"printer_manager": PrinterManager.new(),
@@ -452,6 +535,22 @@ func _state_providers_from(managers: Dictionary) -> Dictionary:
 		&"backlog": managers["backlog_manager"],
 		&"quick_menu": managers["quick_menu_manager"],
 	}
+
+
+func _known_commands_for_tests() -> Array:
+	return [
+		&"var", &"set", &"flag", &"wait", &"mode", &"jump", &"call", &"return",
+		&"char", &"char_remove", &"char_move", &"char_emotion", &"char_effect",
+		&"bg", &"bg_remove", &"scene", &"env",
+		&"play_music", &"stop_music", &"play_se", &"play_voice", &"stop_voice", &"ambience",
+		&"camera", &"camera_shake", &"camera_reset",
+		&"shake", &"flash", &"fade", &"effect", &"nvl_clear",
+		&"save", &"load", &"quick_save", &"quick_load", &"auto_save",
+		&"rollback", &"prevent_rollback", &"allow_rollback", &"fix_rollback",
+		&"skip", &"prevent_skip", &"allow_skip",
+		&"auto", &"prevent_auto", &"allow_auto",
+		&"backlog_clear", &"choice_timeout", &"quick_menu", &"input",
+	]
 
 
 func _assert(condition: bool, message: String) -> void:
