@@ -91,6 +91,9 @@ func run(max_steps: int = 10000) -> Array:
 				break
 			current_index = call_stack.pop_back()
 			continue
+		if result.has("break") or result.has("continue"):
+			_emit_error("'%s' can only be used inside a while block." % ("break" if result.has("break") else "continue"), node.line)
+			break
 		current_index += 1
 	finished.emit(transcript)
 	return transcript
@@ -110,6 +113,10 @@ func _execute_node(node) -> Dictionary:
 				backlog_manager.add_dialogue(node.speaker, text, node.line, presentation)
 			transcript.append({"type": "dialogue", "speaker": node.speaker, "text": text, "line": node.line, "presentation": presentation.duplicate(true)})
 			dialogue_requested.emit(node.speaker, text, node.line)
+			if not node.inline_commands.is_empty():
+				var inline_dialogue_result := _execute_inline_nodes(node.inline_commands)
+				if _should_propagate_result(inline_dialogue_result):
+					return inline_dialogue_result
 			return {"ok": true}
 		&"narration":
 			_push_rollback_snapshot(node)
@@ -121,6 +128,10 @@ func _execute_node(node) -> Dictionary:
 				backlog_manager.add_narration(text, node.line, presentation)
 			transcript.append({"type": "narration", "text": text, "line": node.line, "presentation": presentation.duplicate(true)})
 			narration_requested.emit(text, node.line)
+			if not node.inline_commands.is_empty():
+				var inline_narration_result := _execute_inline_nodes(node.inline_commands)
+				if _should_propagate_result(inline_narration_result):
+					return inline_narration_result
 			return {"ok": true}
 		&"command":
 			return _execute_command_node(node)
@@ -134,6 +145,12 @@ func _execute_node(node) -> Dictionary:
 			return _execute_menu(node)
 		&"if":
 			return _execute_if(node)
+		&"while":
+			return _execute_while(node)
+		&"break":
+			return {"ok": true, "break": true}
+		&"continue":
+			return {"ok": true, "continue": true}
 		_:
 			_emit_error("Unsupported node kind '%s'." % node.kind, node.line)
 			return {"ok": false}
@@ -203,21 +220,48 @@ func _execute_if(node) -> Dictionary:
 	return {"ok": true}
 
 
+func _execute_while(node) -> Dictionary:
+	if node.condition.is_empty():
+		_emit_error("While block is missing a condition.", node.line)
+		return {"ok": false}
+	var iterations := 0
+	while bool(evaluator.evaluate(node.condition, variable_manager, false)):
+		if iterations >= Constants.DEFAULT_MAX_LOOP_ITERATIONS:
+			_emit_error("While loop exceeded %s iterations." % Constants.DEFAULT_MAX_LOOP_ITERATIONS, node.line)
+			return {"ok": false}
+		iterations += 1
+		var result := _execute_inline_nodes(node.actions)
+		if result.has("break"):
+			return {"ok": true}
+		if result.has("continue"):
+			continue
+		if _should_propagate_result(result):
+			return result
+	return {"ok": true}
+
+
 func _execute_inline_nodes(nodes: Array) -> Dictionary:
 	var index := 0
 	while index < nodes.size():
 		var result := _execute_node(nodes[index])
 		node_completed.emit(nodes[index])
-		if result.has("jump") or result.has("call") or result.has("return") or result.has("finish"):
+		if _should_propagate_result(result):
 			return result
 		index += 1
 	return {"ok": true}
+
+
+func _should_propagate_result(result: Dictionary) -> bool:
+	if not bool(result.get("ok", true)):
+		return true
+	return result.has("jump") or result.has("call") or result.has("return") or result.has("finish") or result.has("break") or result.has("continue")
 
 
 func _context_for(node) -> Dictionary:
 	return {
 		"vm": self,
 		"variables": variable_manager,
+		"command_registry": command_registry,
 		"printer_manager": printer_manager,
 		"choice_manager": choice_manager,
 		"rollback_manager": rollback_manager,

@@ -92,6 +92,40 @@ func get_missing_keys() -> Dictionary:
 	return missing_keys.duplicate(true)
 
 
+func export_csv(locale: StringName = &"", include_header: bool = true) -> String:
+	var target := current_locale if locale == &"" else locale
+	add_locale(target)
+	var keys: Array = []
+	for key in catalogs[target]:
+		keys.append(String(key))
+	keys.sort()
+	var lines: Array = []
+	if include_header:
+		lines.append("key,text")
+	for key_text in keys:
+		var key := StringName(str(key_text))
+		lines.append("%s,%s" % [_csv_escape(String(key)), _csv_escape(str(catalogs[target][key]))])
+	return "\n".join(lines)
+
+
+func import_csv(locale: StringName, csv_text: String, replace: bool = false) -> Dictionary:
+	add_locale(locale, {}, replace)
+	var rows := _parse_csv(csv_text)
+	var imported := 0
+	for row_index in range(rows.size()):
+		var row: Array = rows[row_index]
+		if row.size() < 2:
+			continue
+		if row_index == 0 and _is_csv_header(row):
+			continue
+		var key := StringName(str(row[0]).strip_edges())
+		if key == &"":
+			continue
+		add_translation(locale, key, str(row[1]))
+		imported += 1
+	return {"ok": true, "locale": String(locale), "imported": imported}
+
+
 func get_state() -> Dictionary:
 	return {
 		"default_locale": String(default_locale),
@@ -159,6 +193,63 @@ func _string_name_catalogs(source: Dictionary) -> Dictionary:
 		for key in catalog:
 			result[locale_name][StringName(str(key))] = str(catalog[key])
 	return result
+
+
+func _csv_escape(value: String) -> String:
+	if value.contains("\"") or value.contains(",") or value.contains("\n") or value.contains("\r"):
+		return "\"%s\"" % value.replace("\"", "\"\"")
+	return value
+
+
+func _parse_csv(csv_text: String) -> Array:
+	var rows: Array = []
+	var row: Array = []
+	var current := ""
+	var in_quotes := false
+	var index := 0
+	while index < csv_text.length():
+		var ch := csv_text[index]
+		if in_quotes:
+			if ch == "\"" and index + 1 < csv_text.length() and csv_text[index + 1] == "\"":
+				current += "\""
+				index += 2
+				continue
+			if ch == "\"":
+				in_quotes = false
+				index += 1
+				continue
+			current += ch
+			index += 1
+			continue
+		if ch == "\"":
+			in_quotes = true
+			index += 1
+			continue
+		if ch == ",":
+			row.append(current)
+			current = ""
+			index += 1
+			continue
+		if ch == "\n":
+			row.append(current)
+			rows.append(row)
+			row = []
+			current = ""
+			index += 1
+			continue
+		if ch == "\r":
+			index += 1
+			continue
+		current += ch
+		index += 1
+	if not current.is_empty() or not row.is_empty():
+		row.append(current)
+		rows.append(row)
+	return rows
+
+
+func _is_csv_header(row: Array) -> bool:
+	return row.size() >= 2 and str(row[0]).strip_edges().to_lower() == "key" and str(row[1]).strip_edges().to_lower() == "text"
 
 
 func _as_bool(value: Variant) -> bool:

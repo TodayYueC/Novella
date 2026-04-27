@@ -16,6 +16,8 @@ const KEYWORDS := {
 	"endif": true,
 	"while": true,
 	"endwhile": true,
+	"break": true,
+	"continue": true,
 	"and": true,
 	"or": true,
 	"not": true,

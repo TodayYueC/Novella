@@ -6,7 +6,8 @@ signal save_written(slot: StringName, payload: Dictionary)
 signal save_loaded(slot: StringName, payload: Dictionary)
 signal save_deleted(slot: StringName)
 
-const SAVE_VERSION := "0.3.0-alpha"
+const Constants := preload("res://addons/novella/core/constants.gd")
+const SAVE_VERSION := Constants.VERSION
 
 var save_dir: String = "user://novella/saves"
 var use_memory_storage: bool = false

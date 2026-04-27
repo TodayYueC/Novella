@@ -7,7 +7,7 @@ const Constants := preload("res://addons/novella/core/constants.gd")
 const ADDON_ROOT := "addons/novella"
 const REPOSITORY := "https://github.com/TodayYueC/Novella"
 const LICENSE := "MIT"
-const RELEASE_CHANNEL := "alpha"
+const RELEASE_CHANNEL := "rc"
 
 const REQUIRED_FILES := [
 	"README.md",
@@ -25,6 +25,7 @@ const REQUIRED_FILES := [
 	"docs/development.md",
 	"docs/release.md",
 	"docs/v1.0-alpha.md",
+	"docs/v1.0-rc.1.md",
 	"examples/scripts/v1_0_showcase.nvs",
 	".github/workflows/release-check.yml",
 	"scripts/test-godot.ps1",

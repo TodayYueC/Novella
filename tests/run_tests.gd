@@ -2,6 +2,7 @@ extends SceneTree
 
 const Lexer := preload("res://addons/novella/script/lexer.gd")
 const Token := preload("res://addons/novella/script/token.gd")
+const Constants := preload("res://addons/novella/core/constants.gd")
 const Parser := preload("res://addons/novella/script/parser.gd")
 const ExpressionEvaluator := preload("res://addons/novella/script/expression_evaluator.gd")
 const VariableManager := preload("res://addons/novella/script/variable_manager.gd")
@@ -43,7 +44,7 @@ var failures: Array[String] = []
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v1.0 alpha tests passed.")
+		print("Novella v1.0 rc.1 tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -67,15 +68,18 @@ func _run_all() -> void:
 	_test_v0_5_meta_managers()
 	_test_v0_5_meta_views()
 	_test_v0_5_commands_and_localized_vm()
+	_test_v1_0_script_control_flow()
 	_test_v1_0_release_tools()
 	_test_vm_milestone_script()
 
 
 func _test_lexer() -> void:
 	var lexer := Lexer.new()
-	var tokens := lexer.tokenize("@set affinity += 5\nlabel start:")
+	var tokens := lexer.tokenize("@set affinity += 5\nlabel start:\nwhile affinity < 10:\n    continue")
 	_assert(tokens.any(func(token): return token.type == Token.Type.COMMAND and token.literal == "set"), "Lexer should emit @set command token.")
 	_assert(tokens.any(func(token): return token.type == Token.Type.KEYWORD and token.lexeme == "label"), "Lexer should emit label keyword.")
+	_assert(tokens.any(func(token): return token.type == Token.Type.KEYWORD and token.lexeme == "while"), "Lexer should emit while keyword.")
+	_assert(tokens.any(func(token): return token.type == Token.Type.KEYWORD and token.lexeme == "continue"), "Lexer should emit continue keyword.")
 	_assert(lexer.errors.is_empty(), "Lexer should not report errors.")
 
 
@@ -87,6 +91,9 @@ func _test_parser() -> void:
 	_assert(ast.labels.has(&"start"), "Parser should collect start label.")
 	_assert(ast.labels.has(&"greet_path"), "Parser should collect greet_path label.")
 	_assert(ast.children.any(func(node): return node.kind == &"menu"), "Parser should create a menu node.")
+	var control_ast = parser.parse(_v1_0_control_flow_script(), "control.nvs")
+	_assert(parser.errors.is_empty(), "Parser should parse v1.0 control flow without errors: %s" % [parser.errors])
+	_assert(control_ast.children.any(func(node): return node.kind == &"while"), "Parser should create while nodes.")
 
 
 func _test_expression_evaluator() -> void:
@@ -118,6 +125,11 @@ func _test_variable_manager_and_commands() -> void:
 	_assert(registry.execute(&"flag", "set met_ryone")["ok"], "@flag set should execute.")
 	_assert(variables.flags.check_flag(&"met_ryone"), "FlagSet should contain set flag.")
 	_assert(registry.execute(&"mode", "nvl")["mode"] == &"nvl", "@mode should return a printer mode change.")
+	_assert(registry.execute(&"if", "score == 5 then set score += 1", {"command_registry": registry})["ok"], "@if should execute conditional actions.")
+	_assert(variables.get_variable(&"score") == 6, "@if should run nested commands when true.")
+	_assert(registry.execute(&"if", "score < 0 then set score = 0", {"command_registry": registry})["skipped"], "@if should skip false branches.")
+	var random_result := registry.execute(&"random", "win:100 lose:0 seed:1")
+	_assert(random_result["jump"] == &"win", "@random should choose weighted jump targets.")
 	_assert(registry.execute(&"bg", "school transition:dissolve time:1.0")["id"] == "school", "@bg should update background state.")
 	_assert(registry.execute(&"play_music", "main_theme fade:1.0")["channel"] == "bgm", "@play_music should use BGM channel.")
 	_assert(registry.execute(&"auto", "on delay:0.1")["enabled"], "@auto should start auto advance.")
@@ -220,6 +232,7 @@ func _test_v0_3_interaction_managers() -> void:
 	save_manager.enable_memory_storage(true)
 	var saved := save_manager.save_game(&"slot1", {"variables": variables.snapshot()}, {"chapter": "intro"})
 	_assert(saved["ok"], "SaveManager should save to memory storage.")
+	_assert(saved["version"] == Constants.VERSION, "SaveManager should write the current plugin version.")
 	_assert(save_manager.list_saves().size() == 1, "SaveManager should list memory saves.")
 	var loaded := save_manager.load_game(&"slot1")
 	_assert(loaded["state"]["variables"]["game"][&"affinity"] == 7, "SaveManager should load saved state.")
@@ -411,6 +424,13 @@ func _test_v0_5_meta_managers() -> void:
 	_assert(localization.localize_text("$hello", variables).contains("Yue"), "LocalizationManager should localize $key text.")
 	_assert(localization.translate(&"missing_key") == "missing_key", "LocalizationManager should return missing keys as text.")
 	_assert(localization.get_missing_keys().has("ja"), "LocalizationManager should record missing translations.")
+	var csv := localization.export_csv(&"en")
+	_assert(csv.contains("hello,Hello {player}."), "LocalizationManager should export CSV entries.")
+	var imported := localization.import_csv(&"fr", "key,text\nhello,\"Bonjour {player}.\"\nquote,\"A \"\"quoted\"\" line\"\n", true)
+	_assert(imported["imported"] == 2, "LocalizationManager should import CSV rows.")
+	localization.set_locale(&"fr")
+	_assert(localization.translate(&"hello", variables) == "Bonjour Yue.", "LocalizationManager should use imported CSV translations.")
+	_assert(localization.translate(&"quote") == "A \"quoted\" line", "LocalizationManager should unescape quoted CSV fields.")
 
 	var gallery := GalleryManager.new()
 	gallery.register_item(&"cg_school", {"type": "cg", "title": "School", "asset": "school.png"})
@@ -504,11 +524,34 @@ func _test_v0_5_commands_and_localized_vm() -> void:
 	_assert(achievements.is_unlocked(&"collector"), "Meta commands should progress achievements.")
 
 
+func _test_v1_0_script_control_flow() -> void:
+	var parser := Parser.new()
+	var ast = parser.parse(_v1_0_control_flow_script(), "v1_0_control_flow.nvs")
+	_assert(parser.errors.is_empty(), "Parser should accept v1.0 control flow syntax: %s" % [parser.errors])
+	var variables := VariableManager.new()
+	var registry := CommandRegistry.new()
+	var basic := BasicCommands.new()
+	basic.register_all(registry, variables)
+	var vm := VM.new()
+	vm.variable_manager = variables
+	vm.command_registry = registry
+	vm.load_script(ast)
+	var transcript := vm.run()
+	_assert(not transcript.any(func(entry): return entry.get("type", "") == "error"), "VM control flow should not emit runtime errors: %s" % [transcript])
+	_assert(variables.get_variable(&"count") == 3, "VM should execute while loops with break/continue.")
+	_assert(variables.get_variable(&"inline_count") == 3, "VM should execute inline commands after dialogue and narration.")
+	_assert(transcript.any(func(entry): return str(entry.get("text", "")).contains("Count 1")), "VM should present loop dialogue before continue.")
+	_assert(not transcript.any(func(entry): return str(entry.get("text", "")).contains("Count 2")), "VM should skip dialogue when continue is executed.")
+	_assert(transcript.any(func(entry): return str(entry.get("text", "")).contains("Count 3")), "VM should present dialogue before break.")
+	_assert(transcript.any(func(entry): return str(entry.get("text", "")).contains("Done.")), "@random should jump to the selected weighted label.")
+	_assert(not transcript.any(func(entry): return str(entry.get("text", "")).contains("Wrong.")), "@random should avoid zero-weight branches.")
+
+
 func _test_v1_0_release_tools() -> void:
 	var manifest := ReleaseManifest.new()
 	var manifest_data := manifest.to_dict()
-	_assert(manifest_data["version"] == "1.0.0-alpha", "ReleaseManifest should expose the v1.0 alpha version.")
-	_assert(manifest.package_name() == "novella-1.0.0-alpha.zip", "ReleaseManifest should build the package name.")
+	_assert(manifest_data["version"] == Constants.VERSION, "ReleaseManifest should expose the current v1.0 version.")
+	_assert(manifest.package_name() == "novella-%s.zip" % Constants.VERSION, "ReleaseManifest should build the package name.")
 	_assert(manifest.should_package_path("addons/novella/plugin.cfg"), "ReleaseManifest should package addon files.")
 	_assert(not manifest.should_package_path("GodotEngine/Godot.exe"), "ReleaseManifest should reject engine paths.")
 	_assert(not manifest.should_package_path(".godot/imported/cache"), "ReleaseManifest should reject Godot cache paths.")
@@ -523,7 +566,7 @@ func _test_v1_0_release_tools() -> void:
 	_assert(not package_files.has("GodotEngine/Godot.exe"), "ReleaseValidator should exclude engine files from package files.")
 	var bad_result := validator.validate_release(file_list + ["GodotEngine/Godot.exe", "Novella_项目需求文档.md"], plugin_cfg_text)
 	_assert(not bad_result["ok"], "ReleaseValidator should reject forbidden tracked paths.")
-	var mismatch := validator.validate_version_pair(plugin_cfg_text.replace("1.0.0-alpha", "0.5.0-alpha"))
+	var mismatch := validator.validate_version_pair(plugin_cfg_text.replace(Constants.VERSION, "0.5.0-alpha"))
 	_assert(not mismatch["ok"], "ReleaseValidator should reject version mismatches.")
 
 
@@ -560,6 +603,27 @@ func _test_vm_milestone_script() -> void:
 	_assert(audio_manager.get_state()["channels"][&"voice"]["playing"] == false, "VM should execute voice stop command.")
 	_assert(camera_director.get_state()["zoom"] == Vector2.ONE, "VM should execute camera reset command.")
 	_assert(transcript.back().get("text", "") == "Demo end.", "VM should finish at end_path dialogue.")
+
+
+func _v1_0_control_flow_script() -> String:
+	return """@var count = 0
+@var inline_count = 0
+
+label start:
+    while count < 4:
+        @set count += 1
+        @if count == 2 then continue
+        Ryone: Count {count}. @set inline_count += 1
+        @if count >= 3 then break
+    endwhile
+    @random done:100 other:0 seed:1
+
+label other:
+    Ryone: Wrong.
+    return
+
+label done:
+    Done. @set inline_count += 1"""
 
 
 func _sample_script() -> String:
@@ -715,7 +779,7 @@ func _state_providers_from(managers: Dictionary) -> Dictionary:
 
 func _known_commands_for_tests() -> Array:
 	return [
-		&"var", &"set", &"flag", &"wait", &"mode", &"jump", &"call", &"return",
+		&"var", &"set", &"flag", &"wait", &"mode", &"if", &"random", &"jump", &"call", &"return",
 		&"char", &"char_remove", &"char_move", &"char_emotion", &"char_effect",
 		&"bg", &"bg_remove", &"scene", &"env",
 		&"play_music", &"stop_music", &"play_se", &"play_voice", &"stop_voice", &"ambience",
@@ -750,6 +814,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/development.md",
 		"docs/release.md",
 		"docs/v1.0-alpha.md",
+		"docs/v1.0-rc.1.md",
 		"examples/scripts/v1_0_showcase.nvs",
 		".github/workflows/release-check.yml",
 		"scripts/test-godot.ps1",
@@ -765,7 +830,7 @@ func _plugin_cfg_text_for_tests() -> String:
 name="Novella"
 description="Commercial-grade visual novel / GalGame framework for Godot 4."
 author="TodayYueC"
-version="1.0.0-alpha"
+version="1.0.0-rc.1"
 script="novella_editor_plugin.gd"
 """
 

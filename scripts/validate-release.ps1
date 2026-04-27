@@ -20,6 +20,7 @@ $requiredFiles = @(
     "addons/novella/release/release_validator.gd",
     "docs/release.md",
     "docs/v1.0-alpha.md",
+    "docs/v1.0-rc.1.md",
     "examples/scripts/v1_0_showcase.nvs",
     ".github/workflows/release-check.yml",
     "scripts/test-godot.ps1",

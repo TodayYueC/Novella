@@ -57,6 +57,8 @@ func _parse_statement():
 		return _parse_menu(int(line["indent"]), line_number)
 	if text.begins_with("if ") and text.ends_with(":"):
 		return _parse_if(int(line["indent"]), line_number)
+	if text.begins_with("while ") and text.ends_with(":"):
+		return _parse_while(int(line["indent"]), line_number)
 	if text.begins_with("@"):
 		_index += 1
 		return _parse_command(text, line_number)
@@ -73,14 +75,26 @@ func _parse_statement():
 	if text == "return":
 		_index += 1
 		return Ast.ReturnNode.new(line_number)
+	if text == "break":
+		_index += 1
+		return Ast.BreakNode.new(line_number)
+	if text == "continue":
+		_index += 1
+		return Ast.ContinueNode.new(line_number)
 	var colon := text.find(":")
 	if colon > 0:
 		var speaker := text.substr(0, colon).strip_edges()
 		var body := text.substr(colon + 1).strip_edges()
 		_index += 1
-		return Ast.DialogueNode.new(speaker, body, line_number)
+		var inline_dialogue := _extract_inline_commands(body, line_number)
+		var dialogue := Ast.DialogueNode.new(speaker, inline_dialogue["text"], line_number)
+		dialogue.inline_commands = inline_dialogue["commands"]
+		return dialogue
 	_index += 1
-	return Ast.NarrationNode.new(text, line_number)
+	var inline_narration := _extract_inline_commands(text, line_number)
+	var narration := Ast.NarrationNode.new(inline_narration["text"], line_number)
+	narration.inline_commands = inline_narration["commands"]
+	return narration
 
 
 func _parse_menu(menu_indent: int, line_number: int):
@@ -127,12 +141,69 @@ func _parse_if(if_indent: int, line_number: int):
 	return if_node
 
 
+func _parse_while(while_indent: int, line_number: int):
+	var line: Dictionary = _lines[_index]
+	var condition := _strip_trailing_colon(str(line["text"]).substr(6).strip_edges())
+	_index += 1
+	var actions := _parse_block(while_indent + 1)
+	if _index < _lines.size():
+		var next_line: Dictionary = _lines[_index]
+		if int(next_line["indent"]) == while_indent and str(next_line["text"]) == "endwhile":
+			_index += 1
+	return Ast.WhileNode.new(condition, actions, line_number)
+
+
 func _parse_command(text: String, line_number: int):
 	var without_at := text.substr(1)
 	var split_at := without_at.find(" ")
 	if split_at == -1:
 		return Ast.CommandNode.new(StringName(without_at.strip_edges()), "", line_number)
 	return Ast.CommandNode.new(StringName(without_at.substr(0, split_at).strip_edges()), without_at.substr(split_at + 1).strip_edges(), line_number)
+
+
+func _extract_inline_commands(text: String, line_number: int) -> Dictionary:
+	var markers := _find_inline_command_markers(text)
+	if markers.is_empty():
+		return {"text": text, "commands": []}
+	var display_text := text.substr(0, int(markers[0])).strip_edges()
+	var commands: Array = []
+	for i in range(markers.size()):
+		var start := int(markers[i])
+		var next := text.length()
+		if i + 1 < markers.size():
+			next = int(markers[i + 1])
+		var command_text := text.substr(start, next - start).strip_edges()
+		if command_text.begins_with("@"):
+			commands.append(_parse_command(command_text, line_number))
+	return {"text": display_text, "commands": commands}
+
+
+func _find_inline_command_markers(text: String) -> Array:
+	var result: Array = []
+	var in_string := false
+	var escaped := false
+	for i in range(text.length()):
+		var ch := text[i]
+		if escaped:
+			escaped = false
+			continue
+		if ch == "\\":
+			escaped = true
+			continue
+		if ch == "\"":
+			in_string = not in_string
+			continue
+		if ch == "@" and not in_string and _is_inline_command_start(text, i):
+			result.append(i)
+	return result
+
+
+func _is_inline_command_start(text: String, index: int) -> bool:
+	if index > 0 and not _is_whitespace(text[index - 1]):
+		return false
+	if index + 1 >= text.length():
+		return false
+	return _is_identifier_start(text[index + 1])
 
 
 func _parse_call(text: String, line_number: int):
@@ -222,6 +293,14 @@ func _strip_trailing_colon(text: String) -> String:
 
 func _is_block_terminator(text: String) -> bool:
 	return text == "endif" or text == "else:" or (text.begins_with("elif ") and text.ends_with(":")) or text == "endwhile"
+
+
+func _is_whitespace(ch: String) -> bool:
+	return ch == " " or ch == "\t"
+
+
+func _is_identifier_start(ch: String) -> bool:
+	return ch == "_" or ch.unicode_at(0) > 127 or (ch >= "A" and ch <= "Z") or (ch >= "a" and ch <= "z")
 
 
 func _error(message: String) -> void:

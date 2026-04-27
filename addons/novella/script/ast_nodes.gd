@@ -59,6 +59,7 @@ class DialogueNode:
 class NarrationNode:
 	extends AstNode
 	var text: String = ""
+	var inline_commands: Array = []
 
 	func _init(p_text: String = "", p_line: int = 0) -> void:
 		super(&"narration", p_line)
@@ -66,7 +67,7 @@ class NarrationNode:
 
 	func to_dict() -> Dictionary:
 		var data := super.to_dict()
-		data["text"] = text
+		data.merge({"text": text, "inline_commands": inline_commands.duplicate(true)}, true)
 		return data
 
 
@@ -203,3 +204,36 @@ class IfNode:
 			})
 		data["branches"] = branch_data
 		return data
+
+
+class WhileNode:
+	extends AstNode
+	var condition: String = ""
+	var actions: Array = []
+
+	func _init(p_condition: String = "", p_actions: Array = [], p_line: int = 0) -> void:
+		super(&"while", p_line)
+		condition = p_condition
+		actions = p_actions.duplicate()
+
+	func to_dict() -> Dictionary:
+		var data := super.to_dict()
+		var action_data: Array = []
+		for action in actions:
+			action_data.append(action.to_dict())
+		data.merge({"condition": condition, "actions": action_data}, true)
+		return data
+
+
+class BreakNode:
+	extends AstNode
+
+	func _init(p_line: int = 0) -> void:
+		super(&"break", p_line)
+
+
+class ContinueNode:
+	extends AstNode
+
+	func _init(p_line: int = 0) -> void:
+		super(&"continue", p_line)

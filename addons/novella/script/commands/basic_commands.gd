@@ -4,9 +4,11 @@ class_name NovellaBasicCommands
 
 const Constants := preload("res://addons/novella/core/constants.gd")
 const ExpressionEvaluator := preload("res://addons/novella/script/expression_evaluator.gd")
+const CommandParser := preload("res://addons/novella/script/command_parser.gd")
 
 var variable_manager: Variant
 var evaluator := ExpressionEvaluator.new()
+var command_parser := CommandParser.new()
 
 func register_all(registry: Variant, p_variable_manager: Variant) -> void:
 	variable_manager = p_variable_manager
@@ -15,6 +17,8 @@ func register_all(registry: Variant, p_variable_manager: Variant) -> void:
 	registry.register_command(&"flag", Callable(self, "_command_flag"))
 	registry.register_command(&"wait", Callable(self, "_command_wait"))
 	registry.register_command(&"mode", Callable(self, "_command_mode"))
+	registry.register_command(&"if", Callable(self, "_command_if"))
+	registry.register_command(&"random", Callable(self, "_command_random"))
 	registry.register_command(&"jump", Callable(self, "_command_jump"))
 	registry.register_command(&"call", Callable(self, "_command_call"))
 	registry.register_command(&"return", Callable(self, "_command_return"))
@@ -91,6 +95,42 @@ func _command_mode(raw_arguments: String, _context: Dictionary) -> Dictionary:
 	return {"ok": true, "mode": StringName(parts[0]), "raw": raw_arguments}
 
 
+func _command_if(raw_arguments: String, context: Dictionary) -> Dictionary:
+	var parsed := _split_conditional_action(raw_arguments)
+	if parsed["condition"].is_empty() or parsed["action"].is_empty():
+		return {"ok": false, "error": "Invalid @if syntax. Expected '@if condition then action'."}
+	if not bool(evaluator.evaluate(parsed["condition"], variable_manager, false)):
+		return {"ok": true, "skipped": true, "condition": parsed["condition"]}
+	return _execute_flow_action(parsed["action"], context)
+
+
+func _command_random(raw_arguments: String, context: Dictionary) -> Dictionary:
+	var parsed := command_parser.parse_arguments(raw_arguments)
+	var positional: Array = parsed["positional"]
+	if positional.size() >= 2 and positional[0] in ["jump", "call"]:
+		return _execute_flow_action(" ".join(positional), context)
+	var targets := _random_targets_from(parsed["named"])
+	if targets.is_empty():
+		return {"ok": false, "error": "Invalid @random syntax. Expected '@random label:weight label2:weight2 [seed:n]'."}
+	var total_weight := 0.0
+	for target in targets:
+		total_weight += float(target["weight"])
+	if total_weight <= 0.0:
+		return {"ok": false, "error": "@random requires at least one positive weight."}
+	var rng := RandomNumberGenerator.new()
+	if parsed["named"].has(&"seed"):
+		rng.seed = int(_evaluate_value(str(parsed["named"][&"seed"])))
+	else:
+		rng.randomize()
+	var roll := rng.randf() * total_weight
+	var cursor := 0.0
+	for target in targets:
+		cursor += float(target["weight"])
+		if roll <= cursor:
+			return _execute_flow_action("jump %s" % String(target["label"]), context)
+	return _execute_flow_action("jump %s" % String(targets.back()["label"]), context)
+
+
 func _command_jump(raw_arguments: String, _context: Dictionary) -> Dictionary:
 	return {"ok": true, "jump": StringName(raw_arguments.strip_edges())}
 
@@ -101,6 +141,57 @@ func _command_call(raw_arguments: String, _context: Dictionary) -> Dictionary:
 
 func _command_return(_raw_arguments: String, _context: Dictionary) -> Dictionary:
 	return {"ok": true, "return": true}
+
+
+func _split_conditional_action(raw_arguments: String) -> Dictionary:
+	var text := raw_arguments.strip_edges()
+	for delimiter in [" then ", " => ", " do "]:
+		var split_at := text.find(delimiter)
+		if split_at != -1:
+			return {
+				"condition": text.substr(0, split_at).strip_edges(),
+				"action": text.substr(split_at + delimiter.length()).strip_edges(),
+			}
+	return {"condition": "", "action": ""}
+
+
+func _execute_flow_action(action_text: String, context: Dictionary) -> Dictionary:
+	var action := action_text.strip_edges()
+	if action.begins_with("@"):
+		action = action.substr(1).strip_edges()
+	var split_at := action.find(" ")
+	var command_name := action
+	var raw_arguments := ""
+	if split_at != -1:
+		command_name = action.substr(0, split_at).strip_edges()
+		raw_arguments = action.substr(split_at + 1).strip_edges()
+	match command_name:
+		"jump":
+			return {"ok": true, "jump": StringName(raw_arguments)}
+		"call":
+			return {"ok": true, "call": StringName(raw_arguments)}
+		"return":
+			return {"ok": true, "return": true}
+		"break":
+			return {"ok": true, "break": true}
+		"continue":
+			return {"ok": true, "continue": true}
+	var registry = context.get("command_registry", null)
+	if registry != null and registry.has_method("execute"):
+		return registry.execute(StringName(command_name), raw_arguments, context)
+	return {"ok": false, "error": "Cannot execute conditional action '%s'." % action_text}
+
+
+func _random_targets_from(named: Dictionary) -> Array:
+	var targets: Array = []
+	if named.has(&"target") and named.has(&"weight"):
+		targets.append({"label": StringName(str(named[&"target"])), "weight": float(_evaluate_value(str(named[&"weight"])))})
+	for key in named:
+		var key_text := String(key)
+		if key_text in ["seed", "target", "weight"]:
+			continue
+		targets.append({"label": StringName(key_text), "weight": max(0.0, float(_evaluate_value(str(named[key]))))})
+	return targets
 
 
 func _parse_scoped_assignment(raw_arguments: String) -> Dictionary:
