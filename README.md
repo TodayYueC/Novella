@@ -1,6 +1,6 @@
 # Novella
 
-Novella is a Godot 4 visual novel / GalGame plugin. The current implementation includes the v0.1 script runtime core, the v0.2 Alpha presentation core, the v0.3 Alpha interaction/state core, the v0.4 Alpha editor authoring tools, and the v0.5 Alpha meta systems.
+Novella is a Godot 4 visual novel / GalGame plugin. The current implementation includes the v0.1 script runtime core, the v0.2 Alpha presentation core, the v0.3 Alpha interaction/state core, the v0.4 Alpha editor authoring tools, the v0.5 Alpha meta systems, and the v1.0 Alpha release toolchain.
 
 ## Runtime Target
 
@@ -22,6 +22,20 @@ The script uses the local Godot 4.6 executable under `GodotEngine/` by default. 
 .\scripts\test-godot.ps1 -GodotExe "C:\Path\To\Godot_v4.6-stable_win64_console.exe"
 ```
 
+## Release Validation
+
+Validate tracked files, versions, forbidden paths, and the local Godot test suite:
+
+```powershell
+.\scripts\validate-release.ps1
+```
+
+Create a release package in the ignored `dist/` directory:
+
+```powershell
+.\scripts\package-addon.ps1
+```
+
 ## Implemented Milestones
 
 - v0.1 runtime core: parser, AST, VM, variable manager, command registry, basic flow commands.
@@ -29,8 +43,9 @@ The script uses the local Godot 4.6 executable under `GodotEngine/` by default. 
 - v0.3 Alpha interaction/state core: choice evaluation and UI, save/load state snapshots, quick save/load/autosave commands, rollback snapshots, skip/auto managers, backlog records, quick menu state, and basic interaction views.
 - v0.4 Alpha editor tools: Godot editor dock, script outline, timeline model, diagnostics, script templates, asset indexing, and headless tests for authoring workflows.
 - v0.5 Alpha meta systems: localization, gallery/CG unlocks, replay unlocks, achievement progress/unlocks, meta commands, quick menu meta actions, and basic meta UI views.
+- v1.0 Alpha release toolchain: release manifest, release validator, package script, GitHub Actions tracked-file check, v1.0 showcase script, and release documentation.
 
-Not yet implemented: v1.0 release packaging polish, export presets, and expanded compatibility matrix verification beyond the local Godot 4.6 runtime.
+Not yet implemented: export presets and expanded compatibility matrix verification beyond the local Godot 4.6 runtime.
 
 ## License
 

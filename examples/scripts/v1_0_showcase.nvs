@@ -1,0 +1,29 @@
+@var player = "Yue"
+@var affinity = 0
+
+label start:
+    @locale en
+    @translation en line.hello text:"Hello {player}. Welcome to Novella 1.0."
+    @translation ja line.hello text:"こんにちは {player}。Novella 1.0へようこそ。"
+    @translation en choice.memory text:"Unlock the memory"
+    @translation ja choice.memory text:"思い出を開く"
+    @bg school_day transition:dissolve time:0.6
+    @char Ryone uniform happy pos:left enter:fade
+    @play_music main_theme fade:1.0
+    Ryone: $line.hello
+    @set affinity += 5
+    menu:
+        "$choice.memory" if affinity >= 5:
+            @gallery unlock cg_school type:cg title:School asset:res://art/backgrounds/school_day.png
+            @replay unlock intro_replay label:start title:Intro
+            @achievement register collector title:Collector target:2
+            @achievement progress collector amount:2
+            Ryone: This memory is now in your gallery.
+        "Continue":
+            Ryone: We can keep going.
+    @mode nvl
+    The framework now has runtime, presentation, interaction, editor, and meta systems.
+    @nvl_clear
+    @mode adv
+    @stop_music fade:0.5
+    Ryone: Demo complete.

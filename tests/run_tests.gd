@@ -35,13 +35,15 @@ const AssetIndex := preload("res://addons/novella/editor/asset_index.gd")
 const LocalizationManager := preload("res://addons/novella/meta/localization_manager.gd")
 const GalleryManager := preload("res://addons/novella/meta/gallery_manager.gd")
 const AchievementManager := preload("res://addons/novella/meta/achievement_manager.gd")
+const ReleaseManifest := preload("res://addons/novella/release/release_manifest.gd")
+const ReleaseValidator := preload("res://addons/novella/release/release_validator.gd")
 
 var failures: Array[String] = []
 
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v0.5 alpha tests passed.")
+		print("Novella v1.0 alpha tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -65,6 +67,7 @@ func _run_all() -> void:
 	_test_v0_5_meta_managers()
 	_test_v0_5_meta_views()
 	_test_v0_5_commands_and_localized_vm()
+	_test_v1_0_release_tools()
 	_test_vm_milestone_script()
 
 
@@ -501,6 +504,29 @@ func _test_v0_5_commands_and_localized_vm() -> void:
 	_assert(achievements.is_unlocked(&"collector"), "Meta commands should progress achievements.")
 
 
+func _test_v1_0_release_tools() -> void:
+	var manifest := ReleaseManifest.new()
+	var manifest_data := manifest.to_dict()
+	_assert(manifest_data["version"] == "1.0.0-alpha", "ReleaseManifest should expose the v1.0 alpha version.")
+	_assert(manifest.package_name() == "novella-1.0.0-alpha.zip", "ReleaseManifest should build the package name.")
+	_assert(manifest.should_package_path("addons/novella/plugin.cfg"), "ReleaseManifest should package addon files.")
+	_assert(not manifest.should_package_path("GodotEngine/Godot.exe"), "ReleaseManifest should reject engine paths.")
+	_assert(not manifest.should_package_path(".godot/imported/cache"), "ReleaseManifest should reject Godot cache paths.")
+
+	var validator := ReleaseValidator.new()
+	var file_list := _release_file_list_for_tests()
+	var plugin_cfg_text := _plugin_cfg_text_for_tests()
+	var result := validator.validate_release(file_list, plugin_cfg_text)
+	_assert(result["ok"], "ReleaseValidator should accept the release file set: %s" % [result["issues"]])
+	var package_files := validator.package_files(file_list)
+	_assert(package_files.has("addons/novella/plugin.cfg"), "ReleaseValidator should include plugin.cfg in package files.")
+	_assert(not package_files.has("GodotEngine/Godot.exe"), "ReleaseValidator should exclude engine files from package files.")
+	var bad_result := validator.validate_release(file_list + ["GodotEngine/Godot.exe", "Novella_项目需求文档.md"], plugin_cfg_text)
+	_assert(not bad_result["ok"], "ReleaseValidator should reject forbidden tracked paths.")
+	var mismatch := validator.validate_version_pair(plugin_cfg_text.replace("1.0.0-alpha", "0.5.0-alpha"))
+	_assert(not mismatch["ok"], "ReleaseValidator should reject version mismatches.")
+
+
 func _test_vm_milestone_script() -> void:
 	var parser := Parser.new()
 	var ast = parser.parse(_sample_script(), "v0_2_demo.nvs")
@@ -703,6 +729,45 @@ func _known_commands_for_tests() -> Array:
 		&"locale", &"language", &"translation", &"tr_var",
 		&"gallery", &"replay", &"achievement", &"achieve", &"meta_check",
 	]
+
+
+func _release_file_list_for_tests() -> Array:
+	return [
+		"README.md",
+		"LICENSE",
+		"project.godot",
+		"addons/novella/plugin.cfg",
+		"addons/novella/novella.gd",
+		"addons/novella/novella_editor_plugin.gd",
+		"addons/novella/core/constants.gd",
+		"addons/novella/script/novella_vm.gd",
+		"addons/novella/script/commands/basic_commands.gd",
+		"addons/novella/script/commands/presentation_commands.gd",
+		"addons/novella/script/commands/interaction_commands.gd",
+		"addons/novella/script/commands/meta_commands.gd",
+		"addons/novella/release/release_manifest.gd",
+		"addons/novella/release/release_validator.gd",
+		"docs/development.md",
+		"docs/release.md",
+		"docs/v1.0-alpha.md",
+		"examples/scripts/v1_0_showcase.nvs",
+		".github/workflows/release-check.yml",
+		"scripts/test-godot.ps1",
+		"scripts/validate-release.ps1",
+		"scripts/package-addon.ps1",
+		"tests/run_tests.gd",
+	]
+
+
+func _plugin_cfg_text_for_tests() -> String:
+	return """[plugin]
+
+name="Novella"
+description="Commercial-grade visual novel / GalGame framework for Godot 4."
+author="TodayYueC"
+version="1.0.0-alpha"
+script="novella_editor_plugin.gd"
+"""
 
 
 func _assert(condition: bool, message: String) -> void:
