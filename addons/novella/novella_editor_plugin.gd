@@ -56,7 +56,7 @@ func _on_template_requested(template_id: StringName) -> void:
 
 func _known_commands() -> Array:
 	return [
-		&"var", &"set", &"flag", &"wait", &"mode", &"jump", &"call", &"return",
+		&"var", &"set", &"flag", &"wait", &"mode", &"if", &"random", &"jump", &"call", &"return",
 		&"char", &"char_remove", &"char_move", &"char_emotion", &"char_effect",
 		&"bg", &"bg_remove", &"scene", &"env",
 		&"play_music", &"stop_music", &"play_se", &"play_voice", &"stop_voice", &"ambience",
