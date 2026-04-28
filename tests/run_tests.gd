@@ -52,7 +52,7 @@ var failures: Array[String] = []
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v1.0 rc.6 tests passed.")
+		print("Novella v1.0.0 tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -690,7 +690,7 @@ func _test_v1_0_release_tools() -> void:
 	var manifest := ReleaseManifest.new()
 	var manifest_data := manifest.to_dict()
 	_assert(manifest_data["version"] == Constants.VERSION, "ReleaseManifest should expose the current v1.0 version.")
-	_assert(manifest_data["release_channel"] == "rc", "ReleaseManifest should expose the RC channel before stable release.")
+	_assert(manifest_data["release_channel"] == "stable", "ReleaseManifest should expose the stable channel for v1.0.0.")
 	_assert(manifest_data["required_files"].has("addons/novella/script/script_migration.gd"), "ReleaseManifest should require script migration.")
 	_assert(manifest_data["required_files"].has("addons/novella/release/compatibility_matrix.gd"), "ReleaseManifest should require compatibility matrix.")
 	_assert(manifest_data["required_files"].has("docs/api.md"), "ReleaseManifest should require API docs.")
@@ -981,6 +981,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/v1.0-rc.4.md",
 		"docs/v1.0-rc.5.md",
 		"docs/v1.0-rc.6.md",
+		"docs/v1.0.0.md",
 		"examples/scripts/v1_0_showcase.nvs",
 		".github/workflows/release-check.yml",
 		"scripts/test-godot.ps1",
@@ -996,7 +997,7 @@ func _plugin_cfg_text_for_tests() -> String:
 name="Novella"
 description="Commercial-grade visual novel / GalGame framework for Godot 4."
 author="TodayYueC"
-version="1.0.0-rc.6"
+version="1.0.0"
 script="novella_editor_plugin.gd"
 """
 

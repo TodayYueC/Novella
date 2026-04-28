@@ -1,16 +1,19 @@
 # Novella
 
-Novella is a Godot 4 visual novel / GalGame plugin. The current release candidate is `1.0.0-rc.6`, with Godot 4.6 as the primary development runtime and Godot 4.3+ as the compatibility target for the Godot 4 line.
+Novella is a Godot 4 visual novel / GalGame plugin. The current stable release is `1.0.0`. Godot 4.6 is the primary development and validation runtime, and Godot 4.3+ is the compatibility target for the Godot 4 line.
 
-Novella is implemented in GDScript so projects can install, inspect, extend, and package it like a normal Godot addon. Godot engine binaries, export templates, editor caches, local requirement documents, local progress documents, and generated packages are intentionally excluded from version control.
+Novella is implemented in GDScript so projects can install, inspect, extend, and package it like a normal Godot addon. Godot also supports C++ / GDExtension plugins, but Novella keeps the 1.0 runtime script-first for portability, editor integration, and easier community contribution. Native modules can be added later behind the same public APIs if profiling shows a real bottleneck.
+
+Godot engine binaries, export templates, editor caches, generated packages, logs, local requirement documents, and local progress documents are intentionally excluded from version control. Novella is released under the MIT License.
 
 ## English Guide
 
 ### 1. Requirements
 
 - Godot 4.6 is recommended for development and testing.
-- Godot 4.3, 4.4, and 4.5 are compatibility targets, but must still be verified with those local runtimes before claiming full matrix coverage.
-- Git is required if you want to use the release validation and package scripts.
+- Godot 4.3, 4.4, and 4.5 are compatibility targets, pending local matrix verification with those runtimes.
+- Godot 3.x is not supported by Novella 1.0.
+- Git is required for release validation and packaging scripts.
 - PowerShell is used by the included Windows helper scripts.
 
 ### 2. Install The Addon
@@ -31,6 +34,7 @@ This repository already includes the plugin and autoload in `project.godot`, so 
 Novella scripts use the `.nvs` extension. Save story scripts anywhere inside your project, for example `res://story/chapter_01.nvs`.
 
 ```text
+# novella_version: 1.0
 @var player = "Yue"
 @var affinity = 0
 
@@ -57,11 +61,9 @@ label ending:
     Ryone: See you next time.
 ```
 
-The repository includes a fuller example at `examples/scripts/v1_0_showcase.nvs`.
+A fuller showcase script is available at `examples/scripts/v1_0_showcase.nvs`.
 
 ### 4. Run A Script From GDScript
-
-If the `Novella` autoload is enabled, you can load and run a script with a small scene script:
 
 ```gdscript
 extends Node
@@ -175,7 +177,7 @@ else:
 endif
 ```
 
-### 7. Common Commands
+### 7. Command Overview
 
 Runtime and flow:
 
@@ -183,7 +185,7 @@ Runtime and flow:
 - `@set name += value`
 - `@flag set|clear|toggle|check name`
 - `@if condition then action`
-- `@random label_a:70 label_b:30`
+- `@random label_a:70 label_b:30 seed:1`
 - `@jump label`, `@call label`, `@return`
 - `@wait seconds`
 
@@ -194,7 +196,9 @@ Presentation:
 - `@char id outfit emotion pos:left enter:fade`
 - `@char_move id pos:right time:0.5`
 - `@char_emotion id happy`
+- `@char_remove id`
 - `@shake intensity:0.4 duration:0.2`
+- `@flash color:#ffffff duration:0.2`
 - `@camera pos:10,20 zoom:1.2 time:0.5`
 - `@camera_reset`
 - `@play_music id fade:1.0`
@@ -204,51 +208,34 @@ Presentation:
 
 Interaction and state:
 
-- `@save slot`
-- `@load slot`
-- `@quick_save`
-- `@quick_load`
-- `@auto on delay:0.5`
+- `@save slot`, `@load slot`
+- `@quick_save`, `@quick_load`
+- `@auto_save trigger`
+- `@settings set text_speed:40 auto_delay:1.5 fullscreen:false`
+- `@config set text_speed:40`
+- `@rollback`, `@prevent_rollback`, `@allow_rollback`
 - `@skip read|all|off`
-- `@rollback`
-- `@quick_menu show|hide`
+- `@auto on|off delay:1.5`
+- `@quick_menu show|hide|toggle`
 - `@backlog_clear`
+- `@choice_timeout seconds:5 target:timeout_label`
+- `@input variable prompt:"Name"`
 
 Meta systems:
 
 - `@locale en`
 - `@translation en key text:"Translated text"`
+- `@tr_var player Yue`
 - `@gallery unlock id type:cg title:Title asset:res://path.png`
 - `@replay unlock id label:start title:Intro`
 - `@achievement register id title:Title target:3`
 - `@achievement progress id amount:1`
 - `@achievement unlock id title:Title`
+- `@meta_check achievement:id`
 
-### 8. Localization CSV Workflow
+See `docs/commands.md` for the command reference.
 
-`NovellaLocalizationManager` can export and import translation catalogs as CSV strings.
-
-```gdscript
-var csv := Novella.localization_manager.export_csv(&"en")
-Novella.localization_manager.import_csv(&"ja", "key,text\nline.hello,\"こんにちは {player}.\"\n", true)
-```
-
-CSV columns are `key,text`. Quoted fields and escaped quotes are supported.
-
-### 9. Editor Tools
-
-After enabling the plugin, Godot shows a `Novella` editor dock. The current dock can:
-
-- Analyze `.nvs` files.
-- Build a script outline.
-- Build a timeline model.
-- Report diagnostics such as missing labels and unknown commands.
-- Provide starter script templates.
-- Index likely character, background, audio, script, and UI assets.
-
-The visual editor is still a foundation layer, not a complete drag-and-drop node editor.
-
-### 10. Runtime Managers
+### 8. Runtime Managers
 
 The `Novella` autoload exposes the main runtime services:
 
@@ -257,14 +244,24 @@ The `Novella` autoload exposes the main runtime services:
 - `Novella.parser`
 - `Novella.vm`
 - `Novella.printer_manager`
+- `Novella.character_manager`
+- `Novella.background_manager`
+- `Novella.effect_manager`
+- `Novella.audio_manager`
+- `Novella.camera_director`
 - `Novella.choice_manager`
 - `Novella.save_manager`
 - `Novella.settings_manager`
 - `Novella.rollback_manager`
+- `Novella.skip_manager`
+- `Novella.auto_manager`
 - `Novella.backlog_manager`
+- `Novella.quick_menu_manager`
 - `Novella.localization_manager`
 - `Novella.gallery_manager`
 - `Novella.achievement_manager`
+- `Novella.script_migration`
+- `Novella.compatibility_matrix`
 
 You can register custom commands:
 
@@ -276,7 +273,60 @@ func _screen_tint(raw_arguments: String, context: Dictionary) -> Dictionary:
 	return {"ok": true, "raw": raw_arguments}
 ```
 
-### 11. Run Tests
+### 9. Localization CSV Workflow
+
+`NovellaLocalizationManager` can export and import translation catalogs as CSV strings.
+
+```gdscript
+var csv := Novella.localization_manager.export_csv(&"en")
+Novella.localization_manager.import_csv(&"ja", "key,text\nline.hello,\"こんにちは {player}.\"\n", true)
+```
+
+CSV columns are `key,text`. Quoted fields and escaped quotes are supported.
+
+### 10. Editor Tools
+
+After enabling the plugin, Godot shows a `Novella` editor dock. The current dock can:
+
+- Analyze `.nvs` files.
+- Build a script outline.
+- Build a timeline model.
+- Report diagnostics such as missing labels and unknown commands.
+- Provide starter script templates.
+- Index likely character, background, audio, script, and UI assets.
+- Open the visual timeline panel foundation.
+
+The visual editor in 1.0 is a foundation layer. It can model, edit, undo, redo, and serialize timeline events, but it is not yet a full production-grade drag-and-drop node editor.
+
+### 11. Script Migration
+
+Older `.nvs` scripts can be normalized with the migration helper.
+
+```gdscript
+var migration := Novella.script_migration.migrate(old_source)
+if migration["ok"]:
+	var updated_source: String = migration["source"]
+```
+
+The migrator adds `# novella_version: 1.0` and rewrites known aliases such as `@language` to `@locale` and `@achieve` to `@achievement`.
+
+### 12. Compatibility
+
+Use the compatibility helper to inspect the current runtime:
+
+```gdscript
+var status := Novella.compatibility_matrix.runtime_status()
+print(status["message"])
+```
+
+Compatibility status:
+
+- Godot 4.6: primary verified runtime.
+- Godot 4.3, 4.4, and 4.5: compatibility targets pending local runtime matrix verification.
+- Godot 4.7+: expected future-compatible unless Godot changes a required API.
+- Godot 3.x: unsupported by Novella 1.0.
+
+### 13. Run Tests
 
 Use the wrapper script so Godot writes local data inside ignored folders:
 
@@ -290,7 +340,7 @@ To use a different Godot executable:
 .\scripts\test-godot.ps1 -GodotExe "C:\Path\To\Godot_v4.6-stable_win64_console.exe"
 ```
 
-### 12. Validate And Package
+### 14. Validate And Package
 
 Run release validation:
 
@@ -306,7 +356,7 @@ Create a package in the ignored `dist/` directory:
 
 The package script archives only tracked source, examples, tests, scripts, docs, `README.md`, `LICENSE`, and `project.godot`.
 
-### 13. Repository Hygiene
+### 15. Repository Hygiene
 
 Do not commit:
 
@@ -316,56 +366,52 @@ Do not commit:
 - Build output, exported games, logs, temporary files, or `dist/`.
 - Local requirement documents or local progress documents.
 
-Commit source code, addon files, examples, tests, public docs, and small placeholder assets only. Use Git LFS later if large art/audio assets become necessary.
+Commit source code, addon files, examples, tests, public docs, and small placeholder assets only. Use Git LFS later if large art or audio assets become necessary.
 
-### 14. Current Status
+### 16. Release Status
 
-Implemented:
+Implemented in `1.0.0`:
 
 - v0.1 runtime core: lexer, parser, AST, VM, variables, command registry, and basic flow commands.
 - v0.2 presentation core: typewriter timing, rich text conversion, ADV/NVL printer state, character/background/effect/audio/camera managers, and presentation commands.
 - v0.3 interaction and state: choices, save/load, quick save/load, autosave, rollback, skip, auto, backlog, quick menu, and basic UI scenes.
 - v0.4 editor foundation: dock, outline, timeline, diagnostics, templates, and asset index.
 - v0.5 meta systems: localization, gallery, replay, achievements, meta commands, and basic meta UI scenes.
-- v1.0 RC.1 hardening: release validation, package script, GitHub Actions tracked-file check, showcase script, while/break/continue, inline commands, conditional/random commands, localization CSV import/export, and version-aligned save payloads.
-- v1.0 RC.2 save UI foundation: paged save slot summaries, a reusable save/load panel scene, overwrite/delete confirmation flow, and headless UI tests.
-- v1.0 RC.3 core UI completion: default 8x8 save slots, playtime/chapter metadata, autosave triggers, thumbnail capture API, settings manager, settings panel, and quick menu config action.
-- v1.0 RC.4 runtime presentation stage: reusable stage scene for backgrounds, character markers, ADV/NVL printer output, screen effects, audio status, and camera state.
-- v1.0 RC.5 visual editor foundation: timeline event block editing model, undo/redo, script serialization, visual timeline panel, and editor dock integration.
-- v1.0 RC.6 release hardening: script migration helper, compatibility matrix helper, API reference, command reference, compatibility guide, and expanded release validation.
+- v1.0 release line: control-flow hardening, release validation, package script, GitHub Actions release check, showcase script, save/settings UI foundation, runtime stage, visual timeline editor foundation, migration helper, compatibility matrix, and public documentation.
 
-Still pending for a full commercial-grade v1.0:
+Remaining verification:
 
-- Final stable version stamp, package audit, tag, and GitHub push.
-- Verified Godot 4.3, 4.4, and 4.5 test matrix.
+- Godot 4.3, 4.4, and 4.5 need local runtime matrix verification before they can be marked as fully tested.
 
 ## 中文教程
 
 ### 1. 环境要求
 
 - 推荐使用 Godot 4.6 进行开发和测试。
-- 兼容目标是 Godot 4.3、4.4、4.5、4.6+ 的 Godot 4 系列，但 4.3 到 4.5 还需要安装对应运行时后再做矩阵验证。
+- Godot 4.3、4.4、4.5 是兼容目标，但仍需要安装对应版本后跑完整矩阵验证。
+- Novella 1.0 不支持 Godot 3.x。
 - 如果要使用发布校验和打包脚本，需要安装 Git。
-- 仓库内的辅助脚本使用 PowerShell。
+- 仓库内提供的 Windows 辅助脚本使用 PowerShell。
 
 ### 2. 安装插件
 
-你可以直接把本仓库当作 Godot 项目打开，也可以把插件复制到其他 Godot 4 项目中。
+你可以直接把这个仓库作为 Godot 项目打开，也可以把插件复制到其他 Godot 4 项目里。
 
 用于新项目时：
 
 1. 把 `addons/novella/` 复制到你的 Godot 项目。
 2. 打开 Godot 项目。
-3. 在 `Project > Project Settings > Plugins` 中启用 `Novella`。
+3. 在 `Project > Project Settings > Plugins` 启用 `Novella`。
 4. 添加名为 `Novella` 的 Autoload，路径指向 `res://addons/novella/novella.gd`。
 
-本仓库的 `project.godot` 已经配置好了插件和 Autoload，所以开发本插件时可以直接打开。
+本仓库的 `project.godot` 已经配置好插件和 Autoload，所以开发本插件时可以直接打开。
 
 ### 3. 创建脚本
 
 Novella 剧本使用 `.nvs` 扩展名。你可以把剧本放在项目内任意位置，例如 `res://story/chapter_01.nvs`。
 
 ```text
+# novella_version: 1.0
 @var player = "Yue"
 @var affinity = 0
 
@@ -395,8 +441,6 @@ label ending:
 更完整的示例在 `examples/scripts/v1_0_showcase.nvs`。
 
 ### 4. 在 GDScript 中运行剧本
-
-启用 `Novella` Autoload 后，可以在场景脚本中这样运行：
 
 ```gdscript
 extends Node
@@ -518,7 +562,7 @@ endif
 - `@set name += value`
 - `@flag set|clear|toggle|check name`
 - `@if condition then action`
-- `@random label_a:70 label_b:30`
+- `@random label_a:70 label_b:30 seed:1`
 - `@jump label`、`@call label`、`@return`
 - `@wait seconds`
 
@@ -529,7 +573,9 @@ endif
 - `@char id outfit emotion pos:left enter:fade`
 - `@char_move id pos:right time:0.5`
 - `@char_emotion id happy`
+- `@char_remove id`
 - `@shake intensity:0.4 duration:0.2`
+- `@flash color:#ffffff duration:0.2`
 - `@camera pos:10,20 zoom:1.2 time:0.5`
 - `@camera_reset`
 - `@play_music id fade:1.0`
@@ -539,51 +585,34 @@ endif
 
 交互和状态：
 
-- `@save slot`
-- `@load slot`
-- `@quick_save`
-- `@quick_load`
-- `@auto on delay:0.5`
+- `@save slot`、`@load slot`
+- `@quick_save`、`@quick_load`
+- `@auto_save trigger`
+- `@settings set text_speed:40 auto_delay:1.5 fullscreen:false`
+- `@config set text_speed:40`
+- `@rollback`、`@prevent_rollback`、`@allow_rollback`
 - `@skip read|all|off`
-- `@rollback`
-- `@quick_menu show|hide`
+- `@auto on|off delay:1.5`
+- `@quick_menu show|hide|toggle`
 - `@backlog_clear`
+- `@choice_timeout seconds:5 target:timeout_label`
+- `@input variable prompt:"Name"`
 
 元系统：
 
 - `@locale en`
 - `@translation en key text:"Translated text"`
+- `@tr_var player Yue`
 - `@gallery unlock id type:cg title:Title asset:res://path.png`
 - `@replay unlock id label:start title:Intro`
 - `@achievement register id title:Title target:3`
 - `@achievement progress id amount:1`
 - `@achievement unlock id title:Title`
+- `@meta_check achievement:id`
 
-### 8. 本地化 CSV 工作流
+完整命令参考见 `docs/commands.md`。
 
-`NovellaLocalizationManager` 支持把翻译表导出/导入为 CSV 字符串。
-
-```gdscript
-var csv := Novella.localization_manager.export_csv(&"en")
-Novella.localization_manager.import_csv(&"ja", "key,text\nline.hello,\"こんにちは {player}.\"\n", true)
-```
-
-CSV 列为 `key,text`。已支持带引号字段和转义引号。
-
-### 9. 编辑器工具
-
-启用插件后，Godot 编辑器会出现 `Novella` dock。当前 dock 可以：
-
-- 分析 `.nvs` 文件。
-- 生成剧本 outline。
-- 生成 timeline 模型。
-- 报告缺失 label、未知命令等诊断信息。
-- 提供入门剧本模板。
-- 索引可能的角色、背景、音频、剧本和 UI 资源。
-
-当前编辑器工具仍是基础层，还不是完整的拖拽式节点编辑器。
-
-### 10. 运行时管理器
+### 8. 运行时管理器
 
 `Novella` Autoload 暴露了主要运行时服务：
 
@@ -592,14 +621,24 @@ CSV 列为 `key,text`。已支持带引号字段和转义引号。
 - `Novella.parser`
 - `Novella.vm`
 - `Novella.printer_manager`
+- `Novella.character_manager`
+- `Novella.background_manager`
+- `Novella.effect_manager`
+- `Novella.audio_manager`
+- `Novella.camera_director`
 - `Novella.choice_manager`
 - `Novella.save_manager`
 - `Novella.settings_manager`
 - `Novella.rollback_manager`
+- `Novella.skip_manager`
+- `Novella.auto_manager`
 - `Novella.backlog_manager`
+- `Novella.quick_menu_manager`
 - `Novella.localization_manager`
 - `Novella.gallery_manager`
 - `Novella.achievement_manager`
+- `Novella.script_migration`
+- `Novella.compatibility_matrix`
 
 可以注册自定义命令：
 
@@ -611,9 +650,62 @@ func _screen_tint(raw_arguments: String, context: Dictionary) -> Dictionary:
 	return {"ok": true, "raw": raw_arguments}
 ```
 
-### 11. 运行测试
+### 9. 本地化 CSV 工作流
 
-使用包装脚本运行测试，Godot 的本地数据会写到已忽略的目录：
+`NovellaLocalizationManager` 支持把翻译表导出或导入为 CSV 字符串。
+
+```gdscript
+var csv := Novella.localization_manager.export_csv(&"en")
+Novella.localization_manager.import_csv(&"ja", "key,text\nline.hello,\"こんにちは {player}.\"\n", true)
+```
+
+CSV 列为 `key,text`。已支持带引号字段和转义引号。
+
+### 10. 编辑器工具
+
+启用插件后，Godot 编辑器会出现 `Novella` dock。当前 dock 可以：
+
+- 分析 `.nvs` 文件。
+- 生成剧本 outline。
+- 生成 timeline 模型。
+- 报告缺失 label、未知命令等诊断信息。
+- 提供入门剧本模板。
+- 索引可能的角色、背景、音频、剧本和 UI 资源。
+- 打开可视化时间线面板基础功能。
+
+1.0 的可视化编辑器仍是基础层。它可以建模、编辑、撤销、重做和序列化时间线事件，但还不是完整的生产级拖拽式节点编辑器。
+
+### 11. 剧本迁移
+
+旧 `.nvs` 剧本可以用迁移器规范化。
+
+```gdscript
+var migration := Novella.script_migration.migrate(old_source)
+if migration["ok"]:
+	var updated_source: String = migration["source"]
+```
+
+迁移器会添加 `# novella_version: 1.0`，并把已知旧别名改为新命令，例如 `@language` 改为 `@locale`，`@achieve` 改为 `@achievement`。
+
+### 12. 兼容性
+
+使用兼容性助手检查当前运行时：
+
+```gdscript
+var status := Novella.compatibility_matrix.runtime_status()
+print(status["message"])
+```
+
+兼容状态：
+
+- Godot 4.6：主要验证运行时。
+- Godot 4.3、4.4、4.5：兼容目标，等待本地矩阵验证。
+- Godot 4.7+：预期兼容，除非 Godot 改动了插件依赖的 API。
+- Godot 3.x：Novella 1.0 不支持。
+
+### 13. 运行测试
+
+使用包装脚本运行测试，Godot 的本地数据会写入已忽略目录：
 
 ```powershell
 .\scripts\test-godot.ps1
@@ -625,7 +717,7 @@ func _screen_tint(raw_arguments: String, context: Dictionary) -> Dictionary:
 .\scripts\test-godot.ps1 -GodotExe "C:\Path\To\Godot_v4.6-stable_win64_console.exe"
 ```
 
-### 12. 发布校验和打包
+### 14. 发布校验和打包
 
 运行发布校验：
 
@@ -641,40 +733,32 @@ func _screen_tint(raw_arguments: String, context: Dictionary) -> Dictionary:
 
 打包脚本只会归档已跟踪的源码、示例、测试、脚本、文档、`README.md`、`LICENSE` 和 `project.godot`。
 
-### 13. 仓库管理注意事项
+### 15. 仓库管理注意事项
 
 不要提交：
 
 - Godot 引擎可执行文件。
 - Godot 导出模板。
 - `.godot/` 或 `.godot_user/`。
-- 构建产物、导出游戏、日志、临时文件或 `dist/`。
+- 构建产物、导出的游戏、日志、临时文件或 `dist/`。
 - 本地需求文档或本地进度文档。
 
 可以提交源码、插件文件、示例、测试、公开文档和小型占位资源。如果后续需要大型图片或音频资源，再考虑 Git LFS。
 
-### 14. 当前完成情况
+### 16. 发布状态
 
-已完成：
+`1.0.0` 已包含：
 
-- v0.1 运行时核心：Lexer、Parser、AST、VM、变量、命令注册和基础流程命令。
+- v0.1 运行时核心：lexer、parser、AST、VM、变量、命令注册和基础流程命令。
 - v0.2 表现层核心：打字机、富文本、ADV/NVL printer 状态、角色/背景/特效/音频/镜头管理器和表现层命令。
 - v0.3 交互与状态：选项、存档/读档、快速存档/读档、自动存档、回滚、跳过、自动播放、backlog、quick menu 和基础 UI 场景。
 - v0.4 编辑器基础：dock、outline、timeline、diagnostics、模板和资源索引。
 - v0.5 元系统：本地化、画廊、回放、成就、元命令和基础元系统 UI。
-- v1.0 RC.1 加固：发布校验、打包脚本、GitHub Actions 跟踪文件检查、showcase 剧本、while/break/continue、行内命令、条件/随机命令、本地化 CSV 导入导出、存档版本对齐。
-- v1.0 RC.2 存档 UI 基础：分页存档槽摘要、可复用存档/读档面板场景、覆盖/删除确认流程和 headless UI 测试。
-- v1.0 RC.3 核心 UI 补全：默认 8x8 存档槽、游戏时长/章节元数据、自动存档触发点、缩略图捕获 API、设置管理器、设置面板和 quick menu 设置入口。
-- v1.0 RC.4 运行时表现舞台：可复用舞台场景，支持背景、角色标记、ADV/NVL 输出、屏幕特效、音频状态和镜头状态。
-- v1.0 RC.5 可视化编辑器基础：时间线事件块编辑模型、撤销/重做、脚本序列化、可视化时间线面板和编辑器 dock 集成。
+- v1.0 发布线：流程控制加固、发布校验、打包脚本、GitHub Actions 发布检查、showcase 剧本、存档/设置 UI 基础、运行时舞台、可视化时间线编辑器基础、迁移器、兼容矩阵和公开文档。
 
-距离完整商业级 v1.0 仍待完成：
+剩余验证：
 
-- 拖拽交互打磨和更完整的可视化 Inspector 表单。
-- 更完整的画廊、成就和最终存档/读档/设置样式。
-- 最终美术驱动的场景表现和动画打磨。
-- Godot Asset Library 发布素材。
-- Godot 4.3、4.4、4.5 的实机测试矩阵。
+- Godot 4.3、4.4、4.5 需要安装对应本地运行时后再跑完整测试矩阵，才能标记为已完整测试。
 
 ## License
 
