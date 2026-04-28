@@ -66,7 +66,7 @@ func _known_commands() -> Array:
 		&"rollback", &"prevent_rollback", &"allow_rollback", &"fix_rollback",
 		&"skip", &"prevent_skip", &"allow_skip",
 		&"auto", &"prevent_auto", &"allow_auto",
-		&"backlog_clear", &"choice_timeout", &"quick_menu", &"input",
+		&"backlog_clear", &"choice_timeout", &"quick_menu", &"settings", &"config", &"input",
 		&"locale", &"language", &"translation", &"tr_var",
 		&"gallery", &"replay", &"achievement", &"achieve", &"meta_check",
 	]

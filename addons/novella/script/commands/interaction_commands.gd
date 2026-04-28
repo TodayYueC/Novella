@@ -12,6 +12,7 @@ var auto_manager: Variant = null
 var backlog_manager: Variant = null
 var choice_manager: Variant = null
 var quick_menu_manager: Variant = null
+var settings_manager: Variant = null
 
 func register_all(registry: Variant, managers: Dictionary) -> void:
 	save_manager = managers.get("save_manager")
@@ -21,6 +22,7 @@ func register_all(registry: Variant, managers: Dictionary) -> void:
 	backlog_manager = managers.get("backlog_manager")
 	choice_manager = managers.get("choice_manager")
 	quick_menu_manager = managers.get("quick_menu_manager")
+	settings_manager = managers.get("settings_manager")
 
 	registry.register_command(&"save", Callable(self, "_command_save"))
 	registry.register_command(&"load", Callable(self, "_command_load"))
@@ -40,6 +42,8 @@ func register_all(registry: Variant, managers: Dictionary) -> void:
 	registry.register_command(&"backlog_clear", Callable(self, "_command_backlog_clear"))
 	registry.register_command(&"choice_timeout", Callable(self, "_command_choice_timeout"))
 	registry.register_command(&"quick_menu", Callable(self, "_command_quick_menu"))
+	registry.register_command(&"settings", Callable(self, "_command_settings"))
+	registry.register_command(&"config", Callable(self, "_command_settings"))
 	registry.register_command(&"input", Callable(self, "_command_input"))
 
 
@@ -213,6 +217,36 @@ func _command_quick_menu(raw_arguments: String, _context: Dictionary) -> Diction
 		_:
 			return quick_menu_manager.dispatch_action(StringName(action), parsed["named"])
 	return {"ok": true, "visible": quick_menu_manager.visible}
+
+
+func _command_settings(raw_arguments: String, _context: Dictionary) -> Dictionary:
+	if settings_manager == null:
+		return _missing("settings_manager")
+	var parsed := _parse(raw_arguments)
+	if parsed["positional"].is_empty() and parsed["named"].is_empty():
+		return {"ok": true, "settings": settings_manager.settings.duplicate(true)}
+	var action := str(_argument(parsed, 0, "set"))
+	match action:
+		"reset":
+			return {"ok": true, "settings": settings_manager.reset_to_defaults()}
+		"save":
+			return settings_manager.save_to_disk()
+		"load":
+			return settings_manager.load_from_disk()
+		"set":
+			var changed: Dictionary = {}
+			for key in parsed["named"]:
+				var result: Dictionary = settings_manager.set_setting(StringName(str(key)), parsed["named"][key])
+				changed[String(key)] = result.get("value")
+			return {"ok": true, "changed": changed, "settings": settings_manager.settings.duplicate(true)}
+		_:
+			if parsed["named"].is_empty():
+				return {"ok": false, "error": "Invalid @settings syntax. Expected set key:value, reset, save, or load."}
+			var changed: Dictionary = {}
+			for key in parsed["named"]:
+				var result: Dictionary = settings_manager.set_setting(StringName(str(key)), parsed["named"][key])
+				changed[String(key)] = result.get("value")
+			return {"ok": true, "changed": changed, "settings": settings_manager.settings.duplicate(true)}
 
 
 func _command_input(raw_arguments: String, _context: Dictionary) -> Dictionary:

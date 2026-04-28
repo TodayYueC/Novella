@@ -18,6 +18,7 @@ const AudioManager := preload("res://addons/novella/presentation/audio/audio_man
 const CameraDirector := preload("res://addons/novella/presentation/camera/camera_director.gd")
 const ChoiceManager := preload("res://addons/novella/interaction/choice_manager.gd")
 const SaveManager := preload("res://addons/novella/state/save_manager.gd")
+const SettingsManager := preload("res://addons/novella/state/settings_manager.gd")
 const RollbackManager := preload("res://addons/novella/state/rollback_manager.gd")
 const SkipManager := preload("res://addons/novella/interaction/skip_manager.gd")
 const AutoManager := preload("res://addons/novella/interaction/auto_manager.gd")
@@ -45,6 +46,7 @@ var audio_manager: AudioManager
 var camera_director: CameraDirector
 var choice_manager: ChoiceManager
 var save_manager: SaveManager
+var settings_manager: SettingsManager
 var rollback_manager: RollbackManager
 var skip_manager: SkipManager
 var auto_manager: AutoManager
@@ -73,6 +75,7 @@ func _bootstrap() -> void:
 	camera_director = CameraDirector.new()
 	choice_manager = ChoiceManager.new()
 	save_manager = SaveManager.new()
+	settings_manager = SettingsManager.new()
 	rollback_manager = RollbackManager.new()
 	skip_manager = SkipManager.new()
 	auto_manager = AutoManager.new()
@@ -99,6 +102,7 @@ func _bootstrap() -> void:
 	interaction_commands.register_all(commands, {
 		"choice_manager": choice_manager,
 		"save_manager": save_manager,
+		"settings_manager": settings_manager,
 		"rollback_manager": rollback_manager,
 		"skip_manager": skip_manager,
 		"auto_manager": auto_manager,
@@ -126,6 +130,7 @@ func _bootstrap() -> void:
 	services.register_service(&"camera_director", camera_director, true)
 	services.register_service(&"choice_manager", choice_manager, true)
 	services.register_service(&"save_manager", save_manager, true)
+	services.register_service(&"settings_manager", settings_manager, true)
 	services.register_service(&"rollback_manager", rollback_manager, true)
 	services.register_service(&"skip_manager", skip_manager, true)
 	services.register_service(&"auto_manager", auto_manager, true)
@@ -156,6 +161,7 @@ func _bootstrap() -> void:
 		&"audio": audio_manager,
 		&"camera": camera_director,
 		&"choices": choice_manager,
+		&"settings": settings_manager,
 		&"skip": skip_manager,
 		&"auto": auto_manager,
 		&"backlog": backlog_manager,
@@ -201,6 +207,7 @@ func _register_quick_menu_handlers() -> void:
 	quick_menu_manager.register_action_handler(&"gallery", Callable(self, "_quick_action_gallery"))
 	quick_menu_manager.register_action_handler(&"achievements", Callable(self, "_quick_action_achievements"))
 	quick_menu_manager.register_action_handler(&"rollback", Callable(self, "_quick_action_rollback"))
+	quick_menu_manager.register_action_handler(&"config", Callable(self, "_quick_action_config"))
 
 
 func _quick_action_auto(_context: Dictionary) -> Dictionary:
@@ -241,3 +248,7 @@ func _quick_action_rollback(_context: Dictionary) -> Dictionary:
 	if bool(payload.get("ok", false)):
 		vm.restore_state(payload.get("state", {}))
 	return payload
+
+
+func _quick_action_config(_context: Dictionary) -> Dictionary:
+	return {"ok": true, "settings": settings_manager.settings.duplicate(true)}

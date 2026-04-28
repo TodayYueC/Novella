@@ -14,7 +14,15 @@ var use_memory_storage: bool = false
 var quick_slot: StringName = &"quick"
 var autosave_slot: StringName = &"auto"
 var default_slot_prefix: String = "slot_"
-var default_page_size: int = 6
+var default_slot_count: int = 64
+var default_page_size: int = 8
+var current_chapter: String = ""
+var playtime_seconds: float = 0.0
+var autosave_triggers: Dictionary = {
+	"choice": true,
+	"scene": true,
+	"timed": false,
+}
 
 var _memory_slots: Dictionary = {}
 
@@ -29,8 +37,26 @@ func configure(options: Dictionary = {}) -> void:
 		autosave_slot = StringName(str(options["autosave_slot"]))
 	if options.has("slot_prefix"):
 		default_slot_prefix = str(options["slot_prefix"])
+	if options.has("slot_count"):
+		default_slot_count = max(1, int(options["slot_count"]))
 	if options.has("page_size"):
 		default_page_size = max(1, int(options["page_size"]))
+	if options.has("chapter"):
+		current_chapter = str(options["chapter"])
+	if options.has("autosave_triggers") and options["autosave_triggers"] is Dictionary:
+		autosave_triggers = options["autosave_triggers"].duplicate(true)
+
+
+func set_chapter(chapter_name: String) -> void:
+	current_chapter = chapter_name
+
+
+func set_playtime(seconds: float) -> void:
+	playtime_seconds = maxf(0.0, seconds)
+
+
+func advance_playtime(delta: float) -> void:
+	playtime_seconds = maxf(0.0, playtime_seconds + delta)
 
 
 func enable_memory_storage(enabled: bool = true) -> void:
@@ -53,6 +79,17 @@ func save_game(slot: StringName, state: Dictionary, metadata: Dictionary = {}) -
 			return write_result
 	save_written.emit(slot, payload.duplicate(true))
 	return payload.duplicate(true)
+
+
+func save_game_with_thumbnail(slot: StringName, state: Dictionary, metadata: Dictionary, viewport: Viewport, thumbnail_dir: String = "user://novella/thumbnails") -> Dictionary:
+	var next_metadata := metadata.duplicate(true)
+	var thumbnail_path := "%s/%s.png" % [thumbnail_dir.trim_suffix("/"), String(slot)]
+	var thumbnail_result := capture_thumbnail(viewport, thumbnail_path)
+	if bool(thumbnail_result.get("ok", false)):
+		next_metadata["thumbnail"] = thumbnail_result["thumbnail"]
+	else:
+		next_metadata["thumbnail_error"] = thumbnail_result.get("error", "thumbnail capture failed")
+	return save_game(slot, state, next_metadata)
 
 
 func load_game(slot: StringName) -> Dictionary:
@@ -119,10 +156,10 @@ func list_saves() -> Array:
 	return result
 
 
-func list_slots(slot_count: int = 18, page: int = 0, page_size: int = -1, slot_prefix: String = "") -> Array:
+func list_slots(slot_count: int = -1, page: int = 0, page_size: int = -1, slot_prefix: String = "") -> Array:
 	var size: int = default_page_size if page_size <= 0 else page_size
 	var prefix: String = default_slot_prefix if slot_prefix.is_empty() else slot_prefix
-	var safe_slot_count: int = max(0, slot_count)
+	var safe_slot_count: int = default_slot_count if slot_count <= 0 else slot_count
 	var safe_page: int = max(0, page)
 	var start: int = safe_page * size
 	var stop: int = min(start + size, safe_slot_count)
@@ -131,6 +168,12 @@ func list_slots(slot_count: int = 18, page: int = 0, page_size: int = -1, slot_p
 		var slot_name := _numbered_slot_name(index, prefix)
 		result.append(get_slot_summary(slot_name, index, safe_page))
 	return result
+
+
+func page_count(slot_count: int = -1, page_size: int = -1) -> int:
+	var safe_slot_count: int = default_slot_count if slot_count <= 0 else slot_count
+	var size: int = default_page_size if page_size <= 0 else page_size
+	return maxi(1, int(ceil(float(safe_slot_count) / float(size))))
 
 
 func get_slot_summary(slot: StringName, index: int = -1, page: int = -1) -> Dictionary:
@@ -163,6 +206,30 @@ func autosave(state: Dictionary, metadata: Dictionary = {}) -> Dictionary:
 	return save_game(autosave_slot, state, metadata)
 
 
+func autosave_if(trigger: StringName, state: Dictionary, metadata: Dictionary = {}) -> Dictionary:
+	if not _as_bool(autosave_triggers.get(String(trigger), false)):
+		return {"ok": true, "skipped": true, "trigger": String(trigger)}
+	var next_metadata := metadata.duplicate(true)
+	next_metadata["kind"] = "auto"
+	next_metadata["trigger"] = String(trigger)
+	return autosave(state, next_metadata)
+
+
+func capture_thumbnail(viewport: Viewport, path: String) -> Dictionary:
+	if viewport == null:
+		return {"ok": false, "error": "No viewport supplied for thumbnail capture."}
+	var image := viewport.get_texture().get_image()
+	if image == null:
+		return {"ok": false, "error": "Could not read viewport image."}
+	var dir_path := path.get_base_dir()
+	if not dir_path.is_empty():
+		DirAccess.make_dir_recursive_absolute(dir_path)
+	var error := image.save_png(path)
+	if error != OK:
+		return {"ok": false, "error": "Could not save thumbnail '%s'." % path, "code": error}
+	return {"ok": true, "thumbnail": path}
+
+
 func get_state() -> Dictionary:
 	return {
 		"save_dir": save_dir,
@@ -170,7 +237,11 @@ func get_state() -> Dictionary:
 		"quick_slot": String(quick_slot),
 		"autosave_slot": String(autosave_slot),
 		"default_slot_prefix": default_slot_prefix,
+		"default_slot_count": default_slot_count,
 		"default_page_size": default_page_size,
+		"current_chapter": current_chapter,
+		"playtime_seconds": playtime_seconds,
+		"autosave_triggers": autosave_triggers.duplicate(true),
 		"memory_slots": _memory_slots.duplicate(true),
 	}
 
@@ -181,7 +252,11 @@ func restore_state(state: Dictionary) -> void:
 	quick_slot = StringName(str(state.get("quick_slot", String(quick_slot))))
 	autosave_slot = StringName(str(state.get("autosave_slot", String(autosave_slot))))
 	default_slot_prefix = str(state.get("default_slot_prefix", default_slot_prefix))
+	default_slot_count = max(1, int(state.get("default_slot_count", default_slot_count)))
 	default_page_size = max(1, int(state.get("default_page_size", default_page_size)))
+	current_chapter = str(state.get("current_chapter", current_chapter))
+	playtime_seconds = maxf(0.0, float(state.get("playtime_seconds", playtime_seconds)))
+	autosave_triggers = state.get("autosave_triggers", autosave_triggers).duplicate(true)
 	_memory_slots = state.get("memory_slots", {}).duplicate(true)
 
 
@@ -189,7 +264,21 @@ func _build_metadata(metadata: Dictionary) -> Dictionary:
 	var result := metadata.duplicate(true)
 	if not result.has("saved_at"):
 		result["saved_at"] = Time.get_datetime_string_from_system(false, true)
+	if not result.has("chapter") and not current_chapter.is_empty():
+		result["chapter"] = current_chapter
+	if not result.has("playtime_seconds"):
+		result["playtime_seconds"] = playtime_seconds
+	if not result.has("playtime"):
+		result["playtime"] = _format_playtime(float(result.get("playtime_seconds", 0.0)))
 	return result
+
+
+func _format_playtime(seconds: float) -> String:
+	var total := int(maxf(0.0, seconds))
+	var hours := total / 3600
+	var minutes := (total % 3600) / 60
+	var secs := total % 60
+	return "%02d:%02d:%02d" % [hours, minutes, secs]
 
 
 func _write_file(slot: StringName, payload: Dictionary) -> Dictionary:

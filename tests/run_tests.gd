@@ -23,6 +23,8 @@ const CameraDirector := preload("res://addons/novella/presentation/camera/camera
 const ChoiceManager := preload("res://addons/novella/interaction/choice_manager.gd")
 const SaveManager := preload("res://addons/novella/state/save_manager.gd")
 const SaveLoadPanelScene := preload("res://addons/novella/state/ui/save_load_panel.tscn")
+const SettingsManager := preload("res://addons/novella/state/settings_manager.gd")
+const SettingsPanelScene := preload("res://addons/novella/state/ui/settings_panel.tscn")
 const RollbackManager := preload("res://addons/novella/state/rollback_manager.gd")
 const SkipManager := preload("res://addons/novella/interaction/skip_manager.gd")
 const AutoManager := preload("res://addons/novella/interaction/auto_manager.gd")
@@ -45,7 +47,7 @@ var failures: Array[String] = []
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v1.0 rc.2 tests passed.")
+		print("Novella v1.0 rc.3 tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -135,6 +137,9 @@ func _test_variable_manager_and_commands() -> void:
 	_assert(registry.execute(&"play_music", "main_theme fade:1.0")["channel"] == "bgm", "@play_music should use BGM channel.")
 	_assert(registry.execute(&"auto", "on delay:0.1")["enabled"], "@auto should start auto advance.")
 	_assert(registry.execute(&"skip", "read")["mode"] == "read", "@skip should start read skip.")
+	var settings_result := registry.execute(&"settings", "set text_speed:48 auto_delay:2.5 fullscreen:true")
+	_assert(settings_result["changed"]["text_speed"] == 48.0, "@settings should update text speed.")
+	_assert(settings_result["changed"]["fullscreen"] == true, "@settings should update toggles.")
 	_assert(registry.execute(&"locale", "ja")["locale"] == "ja", "@locale should change language.")
 	_assert(registry.execute(&"gallery", "unlock cg_school title:School asset:school.png")["unlocked"], "@gallery should unlock gallery items.")
 	_assert(registry.execute(&"achievement", "unlock first_step title:First")["unlocked"], "@achievement should unlock achievements.")
@@ -231,16 +236,23 @@ func _test_v0_3_interaction_managers() -> void:
 
 	var save_manager := SaveManager.new()
 	save_manager.enable_memory_storage(true)
+	save_manager.configure({"slot_count": 64, "page_size": 8, "chapter": "Intro"})
+	save_manager.set_playtime(125.0)
 	var saved := save_manager.save_game(&"slot1", {"variables": variables.snapshot()}, {"chapter": "intro"})
 	_assert(saved["ok"], "SaveManager should save to memory storage.")
 	_assert(saved["version"] == Constants.VERSION, "SaveManager should write the current plugin version.")
+	_assert(saved["metadata"]["playtime"] == "00:02:05", "SaveManager should format playtime metadata.")
 	_assert(save_manager.list_saves().size() == 1, "SaveManager should list memory saves.")
 	save_manager.save_game(&"slot_1", {"index": 1}, {"title": "Opening", "summary": "Classroom", "thumbnail": "res://thumbs/opening.png"})
-	var slot_page := save_manager.list_slots(4, 0, 2)
-	_assert(slot_page.size() == 2, "SaveManager should build paged save slots.")
+	var slot_page := save_manager.list_slots()
+	_assert(slot_page.size() == 8, "SaveManager should build default 8-slot pages.")
+	_assert(save_manager.page_count() == 8, "SaveManager should default to 8 pages of 8 slots.")
 	_assert(slot_page[0]["occupied"], "SaveManager should mark occupied numbered slots.")
 	_assert(slot_page[0]["title"] == "Opening", "SaveManager should expose slot titles.")
 	_assert(not slot_page[1]["occupied"], "SaveManager should expose empty numbered slots.")
+	_assert(save_manager.autosave_if(&"choice", {"choice": 1})["slot"] == "auto", "SaveManager should autosave enabled triggers.")
+	_assert(save_manager.autosave_if(&"timed", {"tick": 1})["skipped"], "SaveManager should skip disabled autosave triggers.")
+	_assert(not save_manager.capture_thumbnail(null, "user://missing.png")["ok"], "SaveManager should report missing thumbnail viewports.")
 	var loaded := save_manager.load_game(&"slot1")
 	_assert(loaded["state"]["variables"]["game"][&"affinity"] == 7, "SaveManager should load saved state.")
 	_assert(save_manager.quick_save({"value": 1})["slot"] == "quick", "SaveManager should write quick saves.")
@@ -287,16 +299,27 @@ func _test_v0_3_interaction_managers() -> void:
 	quick.set_action_enabled(&"save", false)
 	_assert(quick.dispatch_action(&"save")["disabled"], "QuickMenuManager should honor disabled actions.")
 
+	var settings := SettingsManager.new()
+	settings.set_setting(&"text_speed", 42)
+	settings.set_setting(&"master_volume", 2.0)
+	settings.set_setting(&"fullscreen", "true")
+	settings.apply_to(variables, auto)
+	_assert(settings.get_setting(&"master_volume") == 1.0, "SettingsManager should clamp volume values.")
+	_assert(variables.get_variable(&"text_speed") == 42.0, "SettingsManager should expose settings variables.")
+	_assert(settings.get_setting(&"fullscreen") == true, "SettingsManager should coerce boolean values.")
+
 
 func _test_v0_3_interaction_views() -> void:
 	var choice_scene: PackedScene = load("res://addons/novella/interaction/ui/choice_menu.tscn")
 	var backlog_scene: PackedScene = load("res://addons/novella/interaction/ui/backlog_panel.tscn")
 	var quick_scene: PackedScene = load("res://addons/novella/interaction/ui/quick_menu.tscn")
 	var save_load_scene: PackedScene = SaveLoadPanelScene
+	var settings_scene: PackedScene = SettingsPanelScene
 	var choice_view = choice_scene.instantiate()
 	var backlog_view = backlog_scene.instantiate()
 	var quick_view = quick_scene.instantiate()
 	var save_load_view = save_load_scene.instantiate()
+	var settings_view = settings_scene.instantiate()
 	choice_view.apply_choices([
 		{"index": 0, "text": "First", "enabled": true},
 		{"index": 1, "text": "Second", "disabled": true},
@@ -313,6 +336,17 @@ func _test_v0_3_interaction_views() -> void:
 		{"slot": "slot_1", "occupied": true, "title": "Opening", "summary": "Classroom", "saved_at": "2026-04-28 10:00"},
 		{"slot": "slot_2", "occupied": false},
 	], &"load", 0, 2)
+	settings_view.apply_settings({
+		"text_speed": 44.0,
+		"auto_delay": 1.2,
+		"master_volume": 0.8,
+		"music_volume": 0.7,
+		"voice_volume": 0.6,
+		"sfx_volume": 0.5,
+		"fullscreen": true,
+		"skip_unread": true,
+		"locale": "zh_CN",
+	})
 	_assert(choice_view.get_node("ChoiceList").get_child_count() == 2, "Choice menu view should create buttons.")
 	_assert(backlog_view.get_node("TextLabel").text.contains("Ryone: Hello"), "Backlog panel should render dialogue lines.")
 	_assert(quick_view.get_node("ActionBar").get_child_count() == 2, "Quick menu view should create action buttons.")
@@ -324,10 +358,16 @@ func _test_v0_3_interaction_views() -> void:
 	_assert(save_load_view.get_node("Root/ConfirmPanel").visible, "Save/load panel should show confirmations.")
 	save_load_view.confirm_pending()
 	_assert(requested["delete"] == &"slot_1", "Save/load panel should emit confirmed delete requests.")
+	var changed := {"key": &"", "value": null}
+	settings_view.setting_changed.connect(func(key, value): changed["key"] = key; changed["value"] = value)
+	settings_view._on_slider_changed(50.0, &"text_speed")
+	_assert(changed["key"] == &"text_speed" and changed["value"] == 50.0, "Settings panel should emit changed slider values.")
+	_assert(settings_view.get_node("Root/fullscreenToggle").button_pressed, "Settings panel should apply toggle state.")
 	choice_view.free()
 	backlog_view.free()
 	quick_view.free()
 	save_load_view.free()
+	settings_view.free()
 
 
 func _test_v0_3_commands_and_vm_state() -> void:
@@ -759,6 +799,7 @@ func _make_v0_3_managers() -> Dictionary:
 	var managers := _make_v0_2_managers()
 	managers["choice_manager"] = ChoiceManager.new()
 	managers["save_manager"] = SaveManager.new()
+	managers["settings_manager"] = SettingsManager.new()
 	managers["rollback_manager"] = RollbackManager.new()
 	managers["skip_manager"] = SkipManager.new()
 	managers["auto_manager"] = AutoManager.new()
@@ -785,6 +826,7 @@ func _state_providers_from(managers: Dictionary) -> Dictionary:
 		&"audio": managers["audio_manager"],
 		&"camera": managers["camera_director"],
 		&"choices": managers["choice_manager"],
+		&"settings": managers["settings_manager"],
 		&"skip": managers["skip_manager"],
 		&"auto": managers["auto_manager"],
 		&"backlog": managers["backlog_manager"],
@@ -807,7 +849,7 @@ func _known_commands_for_tests() -> Array:
 		&"play_music", &"stop_music", &"play_se", &"play_voice", &"stop_voice", &"ambience",
 		&"camera", &"camera_shake", &"camera_reset",
 		&"shake", &"flash", &"fade", &"effect", &"nvl_clear",
-		&"save", &"load", &"quick_save", &"quick_load", &"auto_save",
+		&"save", &"load", &"quick_save", &"quick_load", &"auto_save", &"settings", &"config",
 		&"rollback", &"prevent_rollback", &"allow_rollback", &"fix_rollback",
 		&"skip", &"prevent_skip", &"allow_skip",
 		&"auto", &"prevent_auto", &"allow_auto",
@@ -832,6 +874,9 @@ func _release_file_list_for_tests() -> Array:
 		"addons/novella/script/commands/interaction_commands.gd",
 		"addons/novella/script/commands/meta_commands.gd",
 		"addons/novella/state/save_manager.gd",
+		"addons/novella/state/settings_manager.gd",
+		"addons/novella/state/ui/settings_panel.tscn",
+		"addons/novella/state/ui/settings_panel_view.gd",
 		"addons/novella/state/ui/save_load_panel.tscn",
 		"addons/novella/state/ui/save_load_panel_view.gd",
 		"addons/novella/release/release_manifest.gd",
@@ -841,6 +886,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/v1.0-alpha.md",
 		"docs/v1.0-rc.1.md",
 		"docs/v1.0-rc.2.md",
+		"docs/v1.0-rc.3.md",
 		"examples/scripts/v1_0_showcase.nvs",
 		".github/workflows/release-check.yml",
 		"scripts/test-godot.ps1",
@@ -856,7 +902,7 @@ func _plugin_cfg_text_for_tests() -> String:
 name="Novella"
 description="Commercial-grade visual novel / GalGame framework for Godot 4."
 author="TodayYueC"
-version="1.0.0-rc.2"
+version="1.0.0-rc.3"
 script="novella_editor_plugin.gd"
 """
 
