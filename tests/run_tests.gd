@@ -974,6 +974,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/compatibility.md",
 		"docs/development.md",
 		"docs/release.md",
+		"docs/tutorial_zh.md",
 		"docs/v1.0-alpha.md",
 		"docs/v1.0-rc.1.md",
 		"docs/v1.0-rc.2.md",

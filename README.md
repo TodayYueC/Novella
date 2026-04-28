@@ -6,6 +6,8 @@ Novella is implemented in GDScript so projects can install, inspect, extend, and
 
 Godot engine binaries, export templates, editor caches, generated packages, logs, local requirement documents, and local progress documents are intentionally excluded from version control. Novella is released under the MIT License.
 
+Detailed Chinese step-by-step tutorial: [`docs/tutorial_zh.md`](docs/tutorial_zh.md).
+
 ## English Guide
 
 ### 1. Requirements
