@@ -3,6 +3,8 @@ extends Control
 
 class_name NovellaEditorDock
 
+const TimelineEditorPanelScene := preload("res://addons/novella/editor/ui/timeline_editor_panel.tscn")
+
 signal analyze_requested(path: String)
 signal template_requested(template_id: StringName)
 
@@ -11,6 +13,7 @@ var analyze_button: Button
 var tabs: TabContainer
 var outline_tree: Tree
 var timeline_tree: Tree
+var visual_timeline: Control
 var diagnostics_label: RichTextLabel
 var templates_list: ItemList
 
@@ -23,6 +26,8 @@ func apply_analysis(analysis: Dictionary) -> void:
 	path_edit.text = str(analysis.get("file_path", path_edit.text))
 	_apply_outline(analysis.get("outline", {}))
 	_apply_timeline(analysis.get("timeline", {}))
+	if visual_timeline != null and visual_timeline.has_method("apply_events"):
+		visual_timeline.apply_events(analysis.get("timeline", {}).get("events", []))
 	_apply_diagnostics(analysis.get("diagnostics", {}))
 
 
@@ -89,6 +94,10 @@ func _build_ui() -> void:
 	timeline_tree.set_column_title(3, "Detail")
 	timeline_tree.column_titles_visible = true
 	tabs.add_child(timeline_tree)
+
+	visual_timeline = TimelineEditorPanelScene.instantiate()
+	visual_timeline.name = "Visual"
+	tabs.add_child(visual_timeline)
 
 	diagnostics_label = RichTextLabel.new()
 	diagnostics_label.name = "Diagnostics"

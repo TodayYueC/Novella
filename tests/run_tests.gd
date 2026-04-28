@@ -34,6 +34,8 @@ const QuickMenuManager := preload("res://addons/novella/interaction/quick_menu_m
 const EditorController := preload("res://addons/novella/editor/editor_controller.gd")
 const OutlineBuilder := preload("res://addons/novella/editor/script_outline_builder.gd")
 const TimelineModel := preload("res://addons/novella/editor/timeline_model.gd")
+const TimelineEditorModel := preload("res://addons/novella/editor/timeline_editor_model.gd")
+const TimelineEditorPanelScene := preload("res://addons/novella/editor/ui/timeline_editor_panel.tscn")
 const ScriptDiagnostics := preload("res://addons/novella/editor/script_diagnostics.gd")
 const TemplateLibrary := preload("res://addons/novella/editor/script_template_library.gd")
 const AssetIndex := preload("res://addons/novella/editor/asset_index.gd")
@@ -48,7 +50,7 @@ var failures: Array[String] = []
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v1.0 rc.4 tests passed.")
+		print("Novella v1.0 rc.5 tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -460,6 +462,17 @@ func _test_v0_4_editor_models() -> void:
 	_assert(timeline["counts"]["choice"] == 1, "TimelineModel should include menu events.")
 	_assert(timeline["segments"].size() == 3, "TimelineModel should create label segments.")
 	_assert(not diagnostics["has_errors"], "ScriptDiagnostics should report no errors for valid flow.")
+	var timeline_editor := TimelineEditorModel.new()
+	timeline_editor.load_events(timeline["events"])
+	timeline_editor.add_event(&"dialogue", {"speaker": "Ryone", "text": "Inserted", "line": 99}, 1)
+	_assert(timeline_editor.get_events()[1]["text"] == "Inserted", "TimelineEditorModel should insert event blocks.")
+	_assert(timeline_editor.move_event(1, 2)["moved"], "TimelineEditorModel should reorder event blocks.")
+	_assert(timeline_editor.update_event(2, {"text": "Updated"})["text"] == "Updated", "TimelineEditorModel should edit event blocks.")
+	_assert(timeline_editor.duplicate_event(2)["ok"], "TimelineEditorModel should duplicate event blocks.")
+	_assert(timeline_editor.delete_event(3)["ok"], "TimelineEditorModel should delete event blocks.")
+	_assert(timeline_editor.undo()["ok"], "TimelineEditorModel should support undo.")
+	_assert(timeline_editor.redo()["ok"], "TimelineEditorModel should support redo.")
+	_assert(timeline_editor.to_script().contains("Ryone: Updated"), "TimelineEditorModel should serialize events back to script text.")
 
 	var bad_analysis := controller.analyze_source("label start:\n    jump missing\n    @unknown value\n", "bad.nvs", _known_commands_for_tests())
 	_assert(bad_analysis["diagnostics"]["has_errors"], "ScriptDiagnostics should catch missing jump targets.")
@@ -488,15 +501,27 @@ func _test_v0_4_editor_models() -> void:
 func _test_v0_4_editor_dock() -> void:
 	var dock_scene: PackedScene = load("res://addons/novella/editor/ui/novella_editor_dock.tscn")
 	var dock = dock_scene.instantiate()
+	var panel = TimelineEditorPanelScene.instantiate()
 	var controller := EditorController.new()
 	var analysis := controller.analyze_source(_v0_4_sample_script(), "res://story/chapter_01.nvs", _known_commands_for_tests())
 	dock.apply_templates(controller.templates.list_templates())
 	dock.apply_analysis(analysis)
 	_assert(dock.get_node("Root/Tabs/Outline").get_root().get_child_count() > 0, "Editor dock should render outline rows.")
 	_assert(dock.get_node("Root/Tabs/Timeline").get_root().get_child_count() > 0, "Editor dock should render timeline rows.")
+	_assert(dock.get_node("Root/Tabs/Visual/Root/EventList").item_count > 0, "Editor dock should render visual timeline event blocks.")
 	_assert(dock.get_node("Root/Tabs/Diagnostics").text.contains("Errors: 0"), "Editor dock should render diagnostic counts.")
 	_assert(dock.get_node("Root/Tabs/Templates").item_count >= 4, "Editor dock should render template entries.")
+	panel.apply_events(analysis["timeline"]["events"])
+	var moved := {"from": -1, "to": -1}
+	panel.event_moved.connect(func(from_index, to_index): moved["from"] = from_index; moved["to"] = to_index)
+	panel.get_node("Root/EventList").select(1)
+	panel._on_item_selected(1)
+	panel._on_move_up_pressed()
+	_assert(moved["from"] == 1 and moved["to"] == 0, "TimelineEditorPanel should emit move events.")
+	panel.set_mode(&"text")
+	_assert(panel.get_node("Root/Toolbar/ModeButton").text.contains("text"), "TimelineEditorPanel should toggle editing modes.")
 	dock.free()
+	panel.free()
 
 
 func _test_v0_5_meta_managers() -> void:
@@ -892,6 +917,9 @@ func _release_file_list_for_tests() -> Array:
 		"addons/novella/novella.gd",
 		"addons/novella/novella_editor_plugin.gd",
 		"addons/novella/core/constants.gd",
+		"addons/novella/editor/timeline_editor_model.gd",
+		"addons/novella/editor/ui/timeline_editor_panel.tscn",
+		"addons/novella/editor/ui/timeline_editor_panel.gd",
 		"addons/novella/presentation/ui/runtime_stage.tscn",
 		"addons/novella/presentation/ui/runtime_stage.gd",
 		"addons/novella/script/novella_vm.gd",
@@ -914,6 +942,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/v1.0-rc.2.md",
 		"docs/v1.0-rc.3.md",
 		"docs/v1.0-rc.4.md",
+		"docs/v1.0-rc.5.md",
 		"examples/scripts/v1_0_showcase.nvs",
 		".github/workflows/release-check.yml",
 		"scripts/test-godot.ps1",
@@ -929,7 +958,7 @@ func _plugin_cfg_text_for_tests() -> String:
 name="Novella"
 description="Commercial-grade visual novel / GalGame framework for Godot 4."
 author="TodayYueC"
-version="1.0.0-rc.4"
+version="1.0.0-rc.5"
 script="novella_editor_plugin.gd"
 """
 
