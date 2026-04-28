@@ -1,6 +1,6 @@
 # Novella
 
-Novella is a Godot 4 visual novel / GalGame plugin. The current release candidate is `1.0.0-rc.1`, with Godot 4.6 as the primary development runtime and Godot 4.3+ as the compatibility target for the Godot 4 line.
+Novella is a Godot 4 visual novel / GalGame plugin. The current release candidate is `1.0.0-rc.2`, with Godot 4.6 as the primary development runtime and Godot 4.3+ as the compatibility target for the Godot 4 line.
 
 Novella is implemented in GDScript so projects can install, inspect, extend, and package it like a normal Godot addon. Godot engine binaries, export templates, editor caches, local requirement documents, local progress documents, and generated packages are intentionally excluded from version control.
 
@@ -327,11 +327,12 @@ Implemented:
 - v0.4 editor foundation: dock, outline, timeline, diagnostics, templates, and asset index.
 - v0.5 meta systems: localization, gallery, replay, achievements, meta commands, and basic meta UI scenes.
 - v1.0 RC.1 hardening: release validation, package script, GitHub Actions tracked-file check, showcase script, while/break/continue, inline commands, conditional/random commands, localization CSV import/export, and version-aligned save payloads.
+- v1.0 RC.2 save UI foundation: paged save slot summaries, a reusable save/load panel scene, overwrite/delete confirmation flow, and headless UI tests.
 
 Still pending for a full commercial-grade v1.0:
 
 - Full visual drag-and-drop authoring.
-- Richer production UI for save/load, settings, gallery, and achievements.
+- Richer production UI for settings, gallery, achievements, and final save/load styling.
 - More complete scene presentation/rendering integration.
 - Asset Library submission assets.
 - Verified Godot 4.3, 4.4, and 4.5 test matrix.
@@ -659,11 +660,12 @@ func _screen_tint(raw_arguments: String, context: Dictionary) -> Dictionary:
 - v0.4 编辑器基础：dock、outline、timeline、diagnostics、模板和资源索引。
 - v0.5 元系统：本地化、画廊、回放、成就、元命令和基础元系统 UI。
 - v1.0 RC.1 加固：发布校验、打包脚本、GitHub Actions 跟踪文件检查、showcase 剧本、while/break/continue、行内命令、条件/随机命令、本地化 CSV 导入导出、存档版本对齐。
+- v1.0 RC.2 存档 UI 基础：分页存档槽摘要、可复用存档/读档面板场景、覆盖/删除确认流程和 headless UI 测试。
 
 距离完整商业级 v1.0 仍待完成：
 
 - 完整拖拽式可视化编辑器。
-- 更完整的存档/读档、设置、画廊、成就等产品级 UI。
+- 更完整的设置、画廊、成就和最终存档/读档样式。
 - 更完整的场景表现和渲染集成。
 - Godot Asset Library 发布素材。
 - Godot 4.3、4.4、4.5 的实机测试矩阵。

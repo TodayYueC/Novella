@@ -13,6 +13,8 @@ var save_dir: String = "user://novella/saves"
 var use_memory_storage: bool = false
 var quick_slot: StringName = &"quick"
 var autosave_slot: StringName = &"auto"
+var default_slot_prefix: String = "slot_"
+var default_page_size: int = 6
 
 var _memory_slots: Dictionary = {}
 
@@ -25,6 +27,10 @@ func configure(options: Dictionary = {}) -> void:
 		quick_slot = StringName(str(options["quick_slot"]))
 	if options.has("autosave_slot"):
 		autosave_slot = StringName(str(options["autosave_slot"]))
+	if options.has("slot_prefix"):
+		default_slot_prefix = str(options["slot_prefix"])
+	if options.has("page_size"):
+		default_page_size = max(1, int(options["page_size"]))
 
 
 func enable_memory_storage(enabled: bool = true) -> void:
@@ -113,6 +119,38 @@ func list_saves() -> Array:
 	return result
 
 
+func list_slots(slot_count: int = 18, page: int = 0, page_size: int = -1, slot_prefix: String = "") -> Array:
+	var size: int = default_page_size if page_size <= 0 else page_size
+	var prefix: String = default_slot_prefix if slot_prefix.is_empty() else slot_prefix
+	var safe_slot_count: int = max(0, slot_count)
+	var safe_page: int = max(0, page)
+	var start: int = safe_page * size
+	var stop: int = min(start + size, safe_slot_count)
+	var result: Array = []
+	for index in range(start, stop):
+		var slot_name := _numbered_slot_name(index, prefix)
+		result.append(get_slot_summary(slot_name, index, safe_page))
+	return result
+
+
+func get_slot_summary(slot: StringName, index: int = -1, page: int = -1) -> Dictionary:
+	var payload := _peek_slot(slot)
+	var occupied := bool(payload.get("ok", false))
+	var metadata: Dictionary = payload.get("metadata", {}).duplicate(true) if occupied else {}
+	return {
+		"slot": String(slot),
+		"index": index,
+		"page": page,
+		"occupied": occupied,
+		"version": str(payload.get("version", "")) if occupied else "",
+		"metadata": metadata,
+		"title": str(metadata.get("title", metadata.get("chapter", "Empty Slot" if not occupied else String(slot)))),
+		"summary": str(metadata.get("summary", metadata.get("text", ""))),
+		"thumbnail": str(metadata.get("thumbnail", "")),
+		"saved_at": str(metadata.get("saved_at", "")),
+	}
+
+
 func quick_save(state: Dictionary, metadata: Dictionary = {}) -> Dictionary:
 	return save_game(quick_slot, state, metadata)
 
@@ -131,6 +169,8 @@ func get_state() -> Dictionary:
 		"use_memory_storage": use_memory_storage,
 		"quick_slot": String(quick_slot),
 		"autosave_slot": String(autosave_slot),
+		"default_slot_prefix": default_slot_prefix,
+		"default_page_size": default_page_size,
 		"memory_slots": _memory_slots.duplicate(true),
 	}
 
@@ -140,6 +180,8 @@ func restore_state(state: Dictionary) -> void:
 	use_memory_storage = _as_bool(state.get("use_memory_storage", use_memory_storage))
 	quick_slot = StringName(str(state.get("quick_slot", String(quick_slot))))
 	autosave_slot = StringName(str(state.get("autosave_slot", String(autosave_slot))))
+	default_slot_prefix = str(state.get("default_slot_prefix", default_slot_prefix))
+	default_page_size = max(1, int(state.get("default_page_size", default_page_size)))
 	_memory_slots = state.get("memory_slots", {}).duplicate(true)
 
 
@@ -172,12 +214,32 @@ func _read_file(slot: StringName) -> Dictionary:
 	return {"ok": true, "payload": parsed}
 
 
+func _peek_slot(slot: StringName) -> Dictionary:
+	if use_memory_storage:
+		if not _memory_slots.has(slot):
+			return {"ok": false}
+		var payload: Dictionary = _memory_slots[slot]
+		var copy := payload.duplicate(true)
+		copy["ok"] = true
+		return copy
+	var read_result := _read_file(slot)
+	if not bool(read_result.get("ok", false)):
+		return {"ok": false}
+	var payload: Dictionary = read_result["payload"]
+	payload["ok"] = true
+	return payload
+
+
 func _ensure_save_dir() -> void:
 	DirAccess.make_dir_recursive_absolute(save_dir)
 
 
 func _slot_path(slot: StringName) -> String:
 	return "%s/%s.json" % [save_dir, String(slot)]
+
+
+func _numbered_slot_name(index: int, prefix: String) -> StringName:
+	return StringName("%s%s" % [prefix, index + 1])
 
 
 func _jsonify(value: Variant) -> Variant:

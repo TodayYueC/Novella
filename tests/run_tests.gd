@@ -22,6 +22,7 @@ const AudioManager := preload("res://addons/novella/presentation/audio/audio_man
 const CameraDirector := preload("res://addons/novella/presentation/camera/camera_director.gd")
 const ChoiceManager := preload("res://addons/novella/interaction/choice_manager.gd")
 const SaveManager := preload("res://addons/novella/state/save_manager.gd")
+const SaveLoadPanelScene := preload("res://addons/novella/state/ui/save_load_panel.tscn")
 const RollbackManager := preload("res://addons/novella/state/rollback_manager.gd")
 const SkipManager := preload("res://addons/novella/interaction/skip_manager.gd")
 const AutoManager := preload("res://addons/novella/interaction/auto_manager.gd")
@@ -44,7 +45,7 @@ var failures: Array[String] = []
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v1.0 rc.1 tests passed.")
+		print("Novella v1.0 rc.2 tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -234,6 +235,12 @@ func _test_v0_3_interaction_managers() -> void:
 	_assert(saved["ok"], "SaveManager should save to memory storage.")
 	_assert(saved["version"] == Constants.VERSION, "SaveManager should write the current plugin version.")
 	_assert(save_manager.list_saves().size() == 1, "SaveManager should list memory saves.")
+	save_manager.save_game(&"slot_1", {"index": 1}, {"title": "Opening", "summary": "Classroom", "thumbnail": "res://thumbs/opening.png"})
+	var slot_page := save_manager.list_slots(4, 0, 2)
+	_assert(slot_page.size() == 2, "SaveManager should build paged save slots.")
+	_assert(slot_page[0]["occupied"], "SaveManager should mark occupied numbered slots.")
+	_assert(slot_page[0]["title"] == "Opening", "SaveManager should expose slot titles.")
+	_assert(not slot_page[1]["occupied"], "SaveManager should expose empty numbered slots.")
 	var loaded := save_manager.load_game(&"slot1")
 	_assert(loaded["state"]["variables"]["game"][&"affinity"] == 7, "SaveManager should load saved state.")
 	_assert(save_manager.quick_save({"value": 1})["slot"] == "quick", "SaveManager should write quick saves.")
@@ -285,9 +292,11 @@ func _test_v0_3_interaction_views() -> void:
 	var choice_scene: PackedScene = load("res://addons/novella/interaction/ui/choice_menu.tscn")
 	var backlog_scene: PackedScene = load("res://addons/novella/interaction/ui/backlog_panel.tscn")
 	var quick_scene: PackedScene = load("res://addons/novella/interaction/ui/quick_menu.tscn")
+	var save_load_scene: PackedScene = SaveLoadPanelScene
 	var choice_view = choice_scene.instantiate()
 	var backlog_view = backlog_scene.instantiate()
 	var quick_view = quick_scene.instantiate()
+	var save_load_view = save_load_scene.instantiate()
 	choice_view.apply_choices([
 		{"index": 0, "text": "First", "enabled": true},
 		{"index": 1, "text": "Second", "disabled": true},
@@ -300,12 +309,25 @@ func _test_v0_3_interaction_views() -> void:
 		{"id": &"save", "label": "Save", "enabled": true, "visible": true},
 		{"id": &"load", "label": "Load", "enabled": false, "visible": true},
 	])
+	save_load_view.apply_slots([
+		{"slot": "slot_1", "occupied": true, "title": "Opening", "summary": "Classroom", "saved_at": "2026-04-28 10:00"},
+		{"slot": "slot_2", "occupied": false},
+	], &"load", 0, 2)
 	_assert(choice_view.get_node("ChoiceList").get_child_count() == 2, "Choice menu view should create buttons.")
 	_assert(backlog_view.get_node("TextLabel").text.contains("Ryone: Hello"), "Backlog panel should render dialogue lines.")
 	_assert(quick_view.get_node("ActionBar").get_child_count() == 2, "Quick menu view should create action buttons.")
+	_assert(save_load_view.get_node("Root/SlotGrid").get_child_count() == 2, "Save/load panel should render slot cards.")
+	_assert(save_load_view.get_node("Root/Footer/PageLabel").text == "Page 1 / 2", "Save/load panel should render page state.")
+	var requested := {"delete": &""}
+	save_load_view.slot_delete_requested.connect(func(slot): requested["delete"] = slot)
+	save_load_view.request_confirmation(&"delete", &"slot_1")
+	_assert(save_load_view.get_node("Root/ConfirmPanel").visible, "Save/load panel should show confirmations.")
+	save_load_view.confirm_pending()
+	_assert(requested["delete"] == &"slot_1", "Save/load panel should emit confirmed delete requests.")
 	choice_view.free()
 	backlog_view.free()
 	quick_view.free()
+	save_load_view.free()
 
 
 func _test_v0_3_commands_and_vm_state() -> void:
@@ -809,12 +831,16 @@ func _release_file_list_for_tests() -> Array:
 		"addons/novella/script/commands/presentation_commands.gd",
 		"addons/novella/script/commands/interaction_commands.gd",
 		"addons/novella/script/commands/meta_commands.gd",
+		"addons/novella/state/save_manager.gd",
+		"addons/novella/state/ui/save_load_panel.tscn",
+		"addons/novella/state/ui/save_load_panel_view.gd",
 		"addons/novella/release/release_manifest.gd",
 		"addons/novella/release/release_validator.gd",
 		"docs/development.md",
 		"docs/release.md",
 		"docs/v1.0-alpha.md",
 		"docs/v1.0-rc.1.md",
+		"docs/v1.0-rc.2.md",
 		"examples/scripts/v1_0_showcase.nvs",
 		".github/workflows/release-check.yml",
 		"scripts/test-godot.ps1",
@@ -830,7 +856,7 @@ func _plugin_cfg_text_for_tests() -> String:
 name="Novella"
 description="Commercial-grade visual novel / GalGame framework for Godot 4."
 author="TodayYueC"
-version="1.0.0-rc.1"
+version="1.0.0-rc.2"
 script="novella_editor_plugin.gd"
 """
 
