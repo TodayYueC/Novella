@@ -1,6 +1,6 @@
 # Novella
 
-Novella is a Godot 4 visual novel / GalGame plugin. The current release candidate is `1.0.0-rc.3`, with Godot 4.6 as the primary development runtime and Godot 4.3+ as the compatibility target for the Godot 4 line.
+Novella is a Godot 4 visual novel / GalGame plugin. The current release candidate is `1.0.0-rc.4`, with Godot 4.6 as the primary development runtime and Godot 4.3+ as the compatibility target for the Godot 4 line.
 
 Novella is implemented in GDScript so projects can install, inspect, extend, and package it like a normal Godot addon. Godot engine binaries, export templates, editor caches, local requirement documents, local progress documents, and generated packages are intentionally excluded from version control.
 
@@ -330,12 +330,13 @@ Implemented:
 - v1.0 RC.1 hardening: release validation, package script, GitHub Actions tracked-file check, showcase script, while/break/continue, inline commands, conditional/random commands, localization CSV import/export, and version-aligned save payloads.
 - v1.0 RC.2 save UI foundation: paged save slot summaries, a reusable save/load panel scene, overwrite/delete confirmation flow, and headless UI tests.
 - v1.0 RC.3 core UI completion: default 8x8 save slots, playtime/chapter metadata, autosave triggers, thumbnail capture API, settings manager, settings panel, and quick menu config action.
+- v1.0 RC.4 runtime presentation stage: reusable stage scene for backgrounds, character markers, ADV/NVL printer output, screen effects, audio status, and camera state.
 
 Still pending for a full commercial-grade v1.0:
 
 - Full visual drag-and-drop authoring.
 - Richer production UI for gallery, achievements, and final save/load/settings styling.
-- More complete scene presentation/rendering integration.
+- Final art-driven scene presentation and animation polish.
 - Asset Library submission assets.
 - Verified Godot 4.3, 4.4, and 4.5 test matrix.
 
@@ -665,12 +666,13 @@ func _screen_tint(raw_arguments: String, context: Dictionary) -> Dictionary:
 - v1.0 RC.1 加固：发布校验、打包脚本、GitHub Actions 跟踪文件检查、showcase 剧本、while/break/continue、行内命令、条件/随机命令、本地化 CSV 导入导出、存档版本对齐。
 - v1.0 RC.2 存档 UI 基础：分页存档槽摘要、可复用存档/读档面板场景、覆盖/删除确认流程和 headless UI 测试。
 - v1.0 RC.3 核心 UI 补全：默认 8x8 存档槽、游戏时长/章节元数据、自动存档触发点、缩略图捕获 API、设置管理器、设置面板和 quick menu 设置入口。
+- v1.0 RC.4 运行时表现舞台：可复用舞台场景，支持背景、角色标记、ADV/NVL 输出、屏幕特效、音频状态和镜头状态。
 
 距离完整商业级 v1.0 仍待完成：
 
 - 完整拖拽式可视化编辑器。
 - 更完整的画廊、成就和最终存档/读档/设置样式。
-- 更完整的场景表现和渲染集成。
+- 最终美术驱动的场景表现和动画打磨。
 - Godot Asset Library 发布素材。
 - Godot 4.3、4.4、4.5 的实机测试矩阵。
 

@@ -15,6 +15,7 @@ const VM := preload("res://addons/novella/script/novella_vm.gd")
 const RichTextParser := preload("res://addons/novella/presentation/rich_text_parser.gd")
 const TypewriterEffect := preload("res://addons/novella/presentation/typewriter_effect.gd")
 const PrinterManager := preload("res://addons/novella/presentation/printer_manager.gd")
+const RuntimeStageScene := preload("res://addons/novella/presentation/ui/runtime_stage.tscn")
 const CharacterManager := preload("res://addons/novella/presentation/characters/character_manager.gd")
 const BackgroundManager := preload("res://addons/novella/presentation/backgrounds/background_manager.gd")
 const EffectManager := preload("res://addons/novella/presentation/effects/effect_manager.gd")
@@ -47,7 +48,7 @@ var failures: Array[String] = []
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v1.0 rc.3 tests passed.")
+		print("Novella v1.0 rc.4 tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -62,6 +63,7 @@ func _run_all() -> void:
 	_test_text_presentation()
 	_test_printer_manager()
 	_test_printer_views()
+	_test_runtime_stage_view()
 	_test_v0_2_managers()
 	_test_v0_3_interaction_managers()
 	_test_v0_3_interaction_views()
@@ -184,6 +186,28 @@ func _test_printer_views() -> void:
 	_assert(nvl.get_node("TextLabel").text.contains("Ryone: Hello"), "NVL view should display accumulated lines.")
 	adv.free()
 	nvl.free()
+
+
+func _test_runtime_stage_view() -> void:
+	var stage_scene: PackedScene = RuntimeStageScene
+	var stage = stage_scene.instantiate()
+	stage.apply_background({"id": "school_day", "transition": "dissolve"})
+	stage.apply_characters({
+		&"Ryone": {"character_id": "Ryone", "attributes": ["uniform", "happy"], "position": 0.25, "focused": true},
+		&"Mira": {"character_id": "Mira", "attributes": ["casual"], "position": 0.75, "focused": false},
+	})
+	stage.apply_line({"mode": "adv", "speaker": "Ryone", "text": "Hello"})
+	stage.apply_effects({"active_effects": [{"effect": "flash", "target": "screen", "intensity": 0.8}]})
+	stage.apply_audio({"channels": {&"bgm": {"playing": true, "id": "theme"}}})
+	stage.apply_camera({"pos": Vector2(8, 4), "zoom": Vector2(1.1, 1.1)})
+	_assert(stage.get_node("BackgroundLayer/BackgroundLabel").text == "school_day", "RuntimeStage should render background state.")
+	_assert(stage.get_node("CharacterLayer").get_child_count() == 2, "RuntimeStage should render character markers.")
+	_assert(stage.get_node("PrinterLayer/AdvPrinter/NameLabel").text == "Ryone", "RuntimeStage should render ADV dialogue.")
+	_assert(stage.get_node("EffectLayer/EffectLabel").text.contains("flash"), "RuntimeStage should render effect labels.")
+	_assert(stage.get_node("StatusLabel").text.contains("Camera"), "RuntimeStage should render camera state.")
+	stage.clear()
+	_assert(stage.get_node("CharacterLayer").get_child_count() == 0, "RuntimeStage should clear characters.")
+	stage.free()
 
 
 func _test_v0_2_managers() -> void:
@@ -868,6 +892,8 @@ func _release_file_list_for_tests() -> Array:
 		"addons/novella/novella.gd",
 		"addons/novella/novella_editor_plugin.gd",
 		"addons/novella/core/constants.gd",
+		"addons/novella/presentation/ui/runtime_stage.tscn",
+		"addons/novella/presentation/ui/runtime_stage.gd",
 		"addons/novella/script/novella_vm.gd",
 		"addons/novella/script/commands/basic_commands.gd",
 		"addons/novella/script/commands/presentation_commands.gd",
@@ -887,6 +913,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/v1.0-rc.1.md",
 		"docs/v1.0-rc.2.md",
 		"docs/v1.0-rc.3.md",
+		"docs/v1.0-rc.4.md",
 		"examples/scripts/v1_0_showcase.nvs",
 		".github/workflows/release-check.yml",
 		"scripts/test-godot.ps1",
@@ -902,7 +929,7 @@ func _plugin_cfg_text_for_tests() -> String:
 name="Novella"
 description="Commercial-grade visual novel / GalGame framework for Godot 4."
 author="TodayYueC"
-version="1.0.0-rc.3"
+version="1.0.0-rc.4"
 script="novella_editor_plugin.gd"
 """
 
