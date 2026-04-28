@@ -1,6 +1,6 @@
 # Novella
 
-Novella is a Godot 4 visual novel / GalGame plugin. The current release candidate is `1.0.0-rc.5`, with Godot 4.6 as the primary development runtime and Godot 4.3+ as the compatibility target for the Godot 4 line.
+Novella is a Godot 4 visual novel / GalGame plugin. The current release candidate is `1.0.0-rc.6`, with Godot 4.6 as the primary development runtime and Godot 4.3+ as the compatibility target for the Godot 4 line.
 
 Novella is implemented in GDScript so projects can install, inspect, extend, and package it like a normal Godot addon. Godot engine binaries, export templates, editor caches, local requirement documents, local progress documents, and generated packages are intentionally excluded from version control.
 
@@ -332,13 +332,11 @@ Implemented:
 - v1.0 RC.3 core UI completion: default 8x8 save slots, playtime/chapter metadata, autosave triggers, thumbnail capture API, settings manager, settings panel, and quick menu config action.
 - v1.0 RC.4 runtime presentation stage: reusable stage scene for backgrounds, character markers, ADV/NVL printer output, screen effects, audio status, and camera state.
 - v1.0 RC.5 visual editor foundation: timeline event block editing model, undo/redo, script serialization, visual timeline panel, and editor dock integration.
+- v1.0 RC.6 release hardening: script migration helper, compatibility matrix helper, API reference, command reference, compatibility guide, and expanded release validation.
 
 Still pending for a full commercial-grade v1.0:
 
-- Drag-and-drop polish and richer inspector forms for visual authoring.
-- Richer production UI for gallery, achievements, and final save/load/settings styling.
-- Final art-driven scene presentation and animation polish.
-- Asset Library submission assets.
+- Final stable version stamp, package audit, tag, and GitHub push.
 - Verified Godot 4.3, 4.4, and 4.5 test matrix.
 
 ## 中文教程

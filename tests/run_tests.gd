@@ -42,6 +42,8 @@ const AssetIndex := preload("res://addons/novella/editor/asset_index.gd")
 const LocalizationManager := preload("res://addons/novella/meta/localization_manager.gd")
 const GalleryManager := preload("res://addons/novella/meta/gallery_manager.gd")
 const AchievementManager := preload("res://addons/novella/meta/achievement_manager.gd")
+const ScriptMigration := preload("res://addons/novella/script/script_migration.gd")
+const CompatibilityMatrix := preload("res://addons/novella/release/compatibility_matrix.gd")
 const ReleaseManifest := preload("res://addons/novella/release/release_manifest.gd")
 const ReleaseValidator := preload("res://addons/novella/release/release_validator.gd")
 
@@ -50,7 +52,7 @@ var failures: Array[String] = []
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v1.0 rc.5 tests passed.")
+		print("Novella v1.0 rc.6 tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -76,6 +78,7 @@ func _run_all() -> void:
 	_test_v0_5_meta_views()
 	_test_v0_5_commands_and_localized_vm()
 	_test_v1_0_script_control_flow()
+	_test_v1_0_release_hardening()
 	_test_v1_0_release_tools()
 	_test_vm_milestone_script()
 
@@ -658,10 +661,39 @@ func _test_v1_0_script_control_flow() -> void:
 	_assert(not transcript.any(func(entry): return str(entry.get("text", "")).contains("Wrong.")), "@random should avoid zero-weight branches.")
 
 
+func _test_v1_0_release_hardening() -> void:
+	var migration := ScriptMigration.new()
+	var legacy_source := """@language ja
+label start:
+    @achieve unlock first_step title:First
+    Ryone: Hello."""
+	var migrated := migration.migrate(legacy_source)
+	_assert(migrated["ok"], "ScriptMigration should migrate supported legacy scripts.")
+	_assert(migrated["from_version"] == "legacy", "ScriptMigration should detect scripts without version headers as legacy.")
+	_assert(str(migrated["source"]).begins_with("# novella_version: 1.0"), "ScriptMigration should add a script version header.")
+	_assert(str(migrated["source"]).contains("@locale ja"), "ScriptMigration should rewrite @language to @locale.")
+	_assert(str(migrated["source"]).contains("@achievement unlock"), "ScriptMigration should rewrite @achieve to @achievement.")
+	_assert(migration.check_source(migrated["source"])["ok"], "ScriptMigration should accept migrated scripts.")
+
+	var matrix := CompatibilityMatrix.new()
+	var validation := matrix.validate_primary()
+	_assert(validation["ok"], "CompatibilityMatrix should include declared min and primary versions: %s" % [validation["issues"]])
+	_assert(matrix.get_targets().size() == 4, "CompatibilityMatrix should list Godot 4.3 through 4.6 targets.")
+	_assert(matrix.get_minimum_target()["version"] == "4.3", "CompatibilityMatrix should expose Godot 4.3 as the minimum target.")
+	_assert(matrix.get_primary_target()["version"] == "4.6", "CompatibilityMatrix should expose Godot 4.6 as the primary target.")
+	_assert(matrix.runtime_status({"major": 4, "minor": 6})["primary"], "CompatibilityMatrix should mark Godot 4.6 as primary.")
+	_assert(matrix.runtime_status({"major": 4, "minor": 3})["supported"], "CompatibilityMatrix should support Godot 4.3.")
+	_assert(not matrix.runtime_status({"major": 3, "minor": 5})["supported"], "CompatibilityMatrix should reject Godot 3.x.")
+
+
 func _test_v1_0_release_tools() -> void:
 	var manifest := ReleaseManifest.new()
 	var manifest_data := manifest.to_dict()
 	_assert(manifest_data["version"] == Constants.VERSION, "ReleaseManifest should expose the current v1.0 version.")
+	_assert(manifest_data["release_channel"] == "rc", "ReleaseManifest should expose the RC channel before stable release.")
+	_assert(manifest_data["required_files"].has("addons/novella/script/script_migration.gd"), "ReleaseManifest should require script migration.")
+	_assert(manifest_data["required_files"].has("addons/novella/release/compatibility_matrix.gd"), "ReleaseManifest should require compatibility matrix.")
+	_assert(manifest_data["required_files"].has("docs/api.md"), "ReleaseManifest should require API docs.")
 	_assert(manifest.package_name() == "novella-%s.zip" % Constants.VERSION, "ReleaseManifest should build the package name.")
 	_assert(manifest.should_package_path("addons/novella/plugin.cfg"), "ReleaseManifest should package addon files.")
 	_assert(not manifest.should_package_path("GodotEngine/Godot.exe"), "ReleaseManifest should reject engine paths.")
@@ -920,8 +952,12 @@ func _release_file_list_for_tests() -> Array:
 		"addons/novella/editor/timeline_editor_model.gd",
 		"addons/novella/editor/ui/timeline_editor_panel.tscn",
 		"addons/novella/editor/ui/timeline_editor_panel.gd",
+		"addons/novella/release/compatibility_matrix.gd",
+		"addons/novella/release/release_manifest.gd",
+		"addons/novella/release/release_validator.gd",
 		"addons/novella/presentation/ui/runtime_stage.tscn",
 		"addons/novella/presentation/ui/runtime_stage.gd",
+		"addons/novella/script/script_migration.gd",
 		"addons/novella/script/novella_vm.gd",
 		"addons/novella/script/commands/basic_commands.gd",
 		"addons/novella/script/commands/presentation_commands.gd",
@@ -933,8 +969,9 @@ func _release_file_list_for_tests() -> Array:
 		"addons/novella/state/ui/settings_panel_view.gd",
 		"addons/novella/state/ui/save_load_panel.tscn",
 		"addons/novella/state/ui/save_load_panel_view.gd",
-		"addons/novella/release/release_manifest.gd",
-		"addons/novella/release/release_validator.gd",
+		"docs/api.md",
+		"docs/commands.md",
+		"docs/compatibility.md",
 		"docs/development.md",
 		"docs/release.md",
 		"docs/v1.0-alpha.md",
@@ -943,6 +980,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/v1.0-rc.3.md",
 		"docs/v1.0-rc.4.md",
 		"docs/v1.0-rc.5.md",
+		"docs/v1.0-rc.6.md",
 		"examples/scripts/v1_0_showcase.nvs",
 		".github/workflows/release-check.yml",
 		"scripts/test-godot.ps1",
@@ -958,7 +996,7 @@ func _plugin_cfg_text_for_tests() -> String:
 name="Novella"
 description="Commercial-grade visual novel / GalGame framework for Godot 4."
 author="TodayYueC"
-version="1.0.0-rc.5"
+version="1.0.0-rc.6"
 script="novella_editor_plugin.gd"
 """
 

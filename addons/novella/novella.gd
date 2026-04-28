@@ -27,6 +27,8 @@ const QuickMenuManager := preload("res://addons/novella/interaction/quick_menu_m
 const LocalizationManager := preload("res://addons/novella/meta/localization_manager.gd")
 const GalleryManager := preload("res://addons/novella/meta/gallery_manager.gd")
 const AchievementManager := preload("res://addons/novella/meta/achievement_manager.gd")
+const ScriptMigration := preload("res://addons/novella/script/script_migration.gd")
+const CompatibilityMatrix := preload("res://addons/novella/release/compatibility_matrix.gd")
 
 var services: ServiceBus
 var events: EventBus
@@ -55,6 +57,8 @@ var quick_menu_manager: QuickMenuManager
 var localization_manager: LocalizationManager
 var gallery_manager: GalleryManager
 var achievement_manager: AchievementManager
+var script_migration: ScriptMigration
+var compatibility_matrix: CompatibilityMatrix
 
 func _ready() -> void:
 	_bootstrap()
@@ -84,6 +88,8 @@ func _bootstrap() -> void:
 	localization_manager = LocalizationManager.new()
 	gallery_manager = GalleryManager.new()
 	achievement_manager = AchievementManager.new()
+	script_migration = ScriptMigration.new()
+	compatibility_matrix = CompatibilityMatrix.new()
 	basic_commands = BasicCommands.new()
 	presentation_commands = PresentationCommands.new()
 	interaction_commands = InteractionCommands.new()
@@ -139,6 +145,8 @@ func _bootstrap() -> void:
 	services.register_service(&"localization_manager", localization_manager, true)
 	services.register_service(&"gallery_manager", gallery_manager, true)
 	services.register_service(&"achievement_manager", achievement_manager, true)
+	services.register_service(&"script_migration", script_migration, true)
+	services.register_service(&"compatibility_matrix", compatibility_matrix, true)
 
 	vm.variable_manager = variables
 	vm.command_registry = commands

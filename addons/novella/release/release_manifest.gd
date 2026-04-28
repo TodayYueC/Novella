@@ -20,8 +20,12 @@ const REQUIRED_FILES := [
 	"addons/novella/editor/timeline_editor_model.gd",
 	"addons/novella/editor/ui/timeline_editor_panel.tscn",
 	"addons/novella/editor/ui/timeline_editor_panel.gd",
+	"addons/novella/release/compatibility_matrix.gd",
+	"addons/novella/release/release_manifest.gd",
+	"addons/novella/release/release_validator.gd",
 	"addons/novella/presentation/ui/runtime_stage.tscn",
 	"addons/novella/presentation/ui/runtime_stage.gd",
+	"addons/novella/script/script_migration.gd",
 	"addons/novella/script/novella_vm.gd",
 	"addons/novella/script/commands/basic_commands.gd",
 	"addons/novella/script/commands/presentation_commands.gd",
@@ -33,6 +37,9 @@ const REQUIRED_FILES := [
 	"addons/novella/state/ui/save_load_panel_view.gd",
 	"addons/novella/state/ui/settings_panel.tscn",
 	"addons/novella/state/ui/settings_panel_view.gd",
+	"docs/api.md",
+	"docs/commands.md",
+	"docs/compatibility.md",
 	"docs/development.md",
 	"docs/release.md",
 	"docs/v1.0-alpha.md",
@@ -41,6 +48,7 @@ const REQUIRED_FILES := [
 	"docs/v1.0-rc.3.md",
 	"docs/v1.0-rc.4.md",
 	"docs/v1.0-rc.5.md",
+	"docs/v1.0-rc.6.md",
 	"examples/scripts/v1_0_showcase.nvs",
 	".github/workflows/release-check.yml",
 	"scripts/test-godot.ps1",
@@ -87,8 +95,9 @@ const FORBIDDEN_PATH_MARKERS := [
 	".mono/",
 	".vs/",
 	"Novella_",
-	"需求文档",
-	"进度文档",
+	"_requirements",
+	"_progress",
+	"_prd",
 ]
 
 const FORBIDDEN_EXTENSIONS := [
@@ -104,6 +113,7 @@ const FORBIDDEN_EXTENSIONS := [
 	".log",
 	".tmp",
 ]
+
 
 func to_dict() -> Dictionary:
 	return {
