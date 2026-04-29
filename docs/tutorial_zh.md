@@ -2,7 +2,7 @@
 
 这篇教程按“从零开始做一个可运行 Demo”的顺序编写。完成后，你会得到一个 Godot 4 项目，能加载 `.nvs` 剧本，执行对话、旁白、菜单、变量、背景、角色、音频状态、存档、设置、本地化、成就和发布校验。
 
-Novella 1.0 的主测试环境是 Godot 4.6，兼容目标是 Godot 4.3 及以上的 Godot 4.x。Godot 3.x 不在 1.0 支持范围内。
+Novella 1.0.1 的主测试环境是 Godot 4.6，兼容目标是 Godot 4.3 及以上的 Godot 4.x。Godot 3.x 不在 1.0 支持范围内。
 
 ## 1. 准备环境
 
@@ -190,7 +190,7 @@ func _ready() -> void:
 
 ## 7. 理解菜单选择
 
-Novella 1.0 的 VM 是同步执行的。遇到 `menu:` 时：
+Novella 1.0.1 支持两种菜单执行方式。默认情况下 VM 会同步执行。遇到 `menu:` 时：
 
 - 如果没有配置选择策略，会默认选择第一个可用选项。
 - 如果你设置了 `Novella.vm.choice_strategy`，VM 会调用它来决定选项。
@@ -211,7 +211,49 @@ func _choose_second_if_possible(_choices: Array, available: Array) -> int:
 	return int(available[0])
 ```
 
-如果你要做真正可点击的菜单 UI，建议在项目层封装自己的交互流程。1.0 已经提供 `choice_requested` 信号、`ChoiceManager`、条件过滤和文本插值基础，但异步等待玩家点击的完整 UI 流程需要项目自行接入或在后续版本扩展。
+从 1.0.1 开始，也可以让 VM 停在菜单处，等你的 UI 调用 `choose()` 后再继续：
+
+```gdscript
+extends Control
+
+var current_buttons: Array[Button] = []
+
+func _ready() -> void:
+	Novella.vm.auto_select_choices = false
+	Novella.vm.choice_waiting.connect(_on_choice_waiting)
+	var source := FileAccess.get_file_as_string("res://story/chapter_01.nvs")
+	Novella.run_script(source, "res://story/chapter_01.nvs")
+
+func _on_choice_waiting(choices: Array, _line: int) -> void:
+	_clear_choice_buttons()
+	for choice in choices:
+		if not bool(choice.get("enabled", true)):
+			continue
+		var button := Button.new()
+		button.text = str(choice["text"])
+		var choice_index := int(choice["index"])
+		button.pressed.connect(func(): _choose(choice_index))
+		add_child(button)
+		current_buttons.append(button)
+
+func _choose(choice_index: int) -> void:
+	_clear_choice_buttons()
+	var result := Novella.vm.choose(choice_index)
+	if not bool(result.get("ok", false)):
+		push_warning(str(result))
+
+func _clear_choice_buttons() -> void:
+	for button in current_buttons:
+		button.queue_free()
+	current_buttons.clear()
+```
+
+如果你只想检查当前等待中的菜单，可以调用：
+
+```gdscript
+var pending := Novella.vm.get_pending_choice()
+print(pending["choices"])
+```
 
 ## 8. 使用变量和条件
 
@@ -495,7 +537,7 @@ func print_compatibility() -> void:
 正常通过时会看到类似输出：
 
 ```text
-Novella v1.0.0 tests passed.
+Novella v1.0.1 tests passed.
 ```
 
 如果 Windows 输出：
@@ -538,7 +580,7 @@ ERROR: Failed to read the root certificate store.
 生成文件：
 
 ```text
-dist/novella-1.0.0.zip
+dist/novella-1.0.1.zip
 ```
 
 `dist/` 已被忽略，不要提交。打包脚本只归档已跟踪的源码、示例、测试、脚本、公开文档、`README.md`、`LICENSE` 和 `project.godot`。
@@ -571,7 +613,7 @@ dist/novella-1.0.0.zip
 
 ### 菜单没有等玩家点击
 
-Novella 1.0 的 VM 是同步执行，菜单默认选第一个可用项。你可以用 `choice_strategy` 控制选择逻辑。真正的点击式选择 UI 需要在项目层接入。
+默认情况下 VM 同步执行，菜单默认选第一个可用项。你可以用 `choice_strategy` 控制选择逻辑；也可以把 `Novella.vm.auto_select_choices` 设为 `false`，监听 `choice_waiting`，再用 `choose(index)` 从点击式 UI 恢复执行。
 
 ### 存档没有写入
 

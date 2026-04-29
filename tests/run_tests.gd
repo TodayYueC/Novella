@@ -52,7 +52,7 @@ var failures: Array[String] = []
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v1.0.0 tests passed.")
+		print("Novella v1.0.1 tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -78,6 +78,7 @@ func _run_all() -> void:
 	_test_v0_5_meta_views()
 	_test_v0_5_commands_and_localized_vm()
 	_test_v1_0_script_control_flow()
+	_test_v1_0_1_interactive_choice_resume()
 	_test_v1_0_release_hardening()
 	_test_v1_0_release_tools()
 	_test_vm_milestone_script()
@@ -661,6 +662,50 @@ func _test_v1_0_script_control_flow() -> void:
 	_assert(not transcript.any(func(entry): return str(entry.get("text", "")).contains("Wrong.")), "@random should avoid zero-weight branches.")
 
 
+func _test_v1_0_1_interactive_choice_resume() -> void:
+	var parser := Parser.new()
+	var ast = parser.parse(_v1_0_1_interactive_choice_script(), "v1_0_1_interactive_choice.nvs")
+	_assert(parser.errors.is_empty(), "Parser should accept v1.0.1 interactive choice script: %s" % [parser.errors])
+	var variables := VariableManager.new()
+	var registry := CommandRegistry.new()
+	var basic := BasicCommands.new()
+	basic.register_all(registry, variables)
+	var vm := VM.new()
+	vm.variable_manager = variables
+	vm.command_registry = registry
+	vm.choice_manager = ChoiceManager.new()
+	vm.auto_select_choices = false
+	vm.load_script(ast)
+	var transcript := vm.run()
+	_assert(vm.waiting_for_choice, "VM should pause at menu when auto_select_choices is false.")
+	_assert(transcript.size() == 1 and transcript[0]["type"] == "dialogue", "VM should stop before appending a choice transcript.")
+	var pending := vm.get_pending_choice()
+	_assert(pending["choices"].size() == 2, "VM should expose pending choices for UI.")
+	_assert(pending["available_indices"].has(1), "VM should expose available choice indices.")
+	var snapshot := vm.snapshot_state()
+	var restored_variables := VariableManager.new()
+	var restored_registry := CommandRegistry.new()
+	var restored_basic := BasicCommands.new()
+	restored_basic.register_all(restored_registry, restored_variables)
+	var restored_vm := VM.new()
+	restored_vm.variable_manager = restored_variables
+	restored_vm.command_registry = restored_registry
+	restored_vm.choice_manager = ChoiceManager.new()
+	restored_vm.auto_select_choices = false
+	restored_vm.load_script(ast)
+	restored_vm.restore_state(snapshot)
+	_assert(restored_vm.waiting_for_choice, "VM should restore pending choice state from snapshots.")
+	var chosen := restored_vm.choose(1)
+	_assert(chosen["ok"], "VM should accept a valid pending choice: %s" % [chosen])
+	_assert(not restored_vm.waiting_for_choice, "VM should clear the pending choice after choose().")
+	_assert(restored_vm.is_finished(), "VM should finish after resolving the chosen branch.")
+	_assert(restored_variables.get_variable(&"path") == "right", "VM should execute actions for the selected pending choice.")
+	_assert(restored_vm.transcript.any(func(entry): return entry.get("type", "") == "choice" and entry.get("index", -1) == 1), "VM should append the selected choice to transcript.")
+	_assert(restored_vm.transcript.any(func(entry): return str(entry.get("text", "")).contains("Path: right.")), "VM should continue execution after choose().")
+	var invalid := restored_vm.choose(0)
+	_assert(not invalid["ok"], "VM should reject choose() when not waiting for a choice.")
+
+
 func _test_v1_0_release_hardening() -> void:
 	var migration := ScriptMigration.new()
 	var legacy_source := """@language ja
@@ -690,7 +735,7 @@ func _test_v1_0_release_tools() -> void:
 	var manifest := ReleaseManifest.new()
 	var manifest_data := manifest.to_dict()
 	_assert(manifest_data["version"] == Constants.VERSION, "ReleaseManifest should expose the current v1.0 version.")
-	_assert(manifest_data["release_channel"] == "stable", "ReleaseManifest should expose the stable channel for v1.0.0.")
+	_assert(manifest_data["release_channel"] == "stable", "ReleaseManifest should expose the stable channel for v1.0.1.")
 	_assert(manifest_data["required_files"].has("addons/novella/script/script_migration.gd"), "ReleaseManifest should require script migration.")
 	_assert(manifest_data["required_files"].has("addons/novella/release/compatibility_matrix.gd"), "ReleaseManifest should require compatibility matrix.")
 	_assert(manifest_data["required_files"].has("docs/api.md"), "ReleaseManifest should require API docs.")
@@ -767,6 +812,23 @@ label other:
 
 label done:
     Done. @set inline_count += 1"""
+
+
+func _v1_0_1_interactive_choice_script() -> String:
+	return """@var path = ""
+
+label start:
+    Ryone: Choose a path.
+    menu:
+        "Left":
+            @set path = "left"
+            jump ending
+        "Right":
+            @set path = "right"
+            jump ending
+
+label ending:
+    Ryone: Path: {path}."""
 
 
 func _sample_script() -> String:
@@ -983,6 +1045,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/v1.0-rc.5.md",
 		"docs/v1.0-rc.6.md",
 		"docs/v1.0.0.md",
+		"docs/v1.0.1.md",
 		"examples/scripts/v1_0_showcase.nvs",
 		".github/workflows/release-check.yml",
 		"scripts/test-godot.ps1",
@@ -998,7 +1061,7 @@ func _plugin_cfg_text_for_tests() -> String:
 name="Novella"
 description="Commercial-grade visual novel / GalGame framework for Godot 4."
 author="TodayYueC"
-version="1.0.0"
+version="1.0.1"
 script="novella_editor_plugin.gd"
 """
 

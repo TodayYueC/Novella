@@ -41,6 +41,24 @@ var transcript := Novella.run_script(source, "res://story/chapter_01.nvs")
 
 For custom rendering, connect to VM signals and translate transcript payloads into your own UI.
 
+## Interactive Choices
+
+By default, `run_script()` executes synchronously and selects the first available menu option unless `choice_strategy` is set. For click-driven UI, disable automatic selection and resolve the pending choice later.
+
+```gdscript
+Novella.vm.auto_select_choices = false
+Novella.vm.choice_waiting.connect(_on_choice_waiting)
+Novella.run_script(source, "res://story/chapter_01.nvs")
+
+func _on_choice_waiting(choices: Array, line: int) -> void:
+	print(choices)
+
+func choose_from_button(choice_index: int) -> void:
+	Novella.vm.choose(choice_index)
+```
+
+Use `Novella.vm.get_pending_choice()` to inspect the current pending menu.
+
 ## Custom Commands
 
 ```gdscript

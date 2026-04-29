@@ -51,6 +51,7 @@ const REQUIRED_FILES := [
 	"docs/v1.0-rc.5.md",
 	"docs/v1.0-rc.6.md",
 	"docs/v1.0.0.md",
+	"docs/v1.0.1.md",
 	"examples/scripts/v1_0_showcase.nvs",
 	".github/workflows/release-check.yml",
 	"scripts/test-godot.ps1",
