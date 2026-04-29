@@ -22,6 +22,8 @@ $requiredFiles = @(
     "addons/novella/release/compatibility_matrix.gd",
     "addons/novella/release/release_manifest.gd",
     "addons/novella/release/release_validator.gd",
+    "addons/novella/presentation/ui/runtime_player.tscn",
+    "addons/novella/presentation/ui/runtime_player.gd",
     "addons/novella/presentation/ui/runtime_stage.tscn",
     "addons/novella/presentation/ui/runtime_stage.gd",
     "addons/novella/script/script_migration.gd",
@@ -46,6 +48,7 @@ $requiredFiles = @(
     "docs/v1.0-rc.6.md",
     "docs/v1.0.0.md",
     "docs/v1.0.1.md",
+    "docs/v1.1.0.md",
     "examples/scripts/v1_0_showcase.nvs",
     ".github/workflows/release-check.yml",
     "scripts/test-godot.ps1",
@@ -98,8 +101,8 @@ if ($pluginVersion -ne $constantVersion) {
     throw "Version mismatch: plugin.cfg=$pluginVersion constants.gd=$constantVersion"
 }
 
-if ($constantVersion -notmatch '^1\.0\.') {
-    throw "Expected a v1.0 release version. Found $constantVersion"
+if ($constantVersion -notmatch '^1\.') {
+    throw "Expected a v1 release version. Found $constantVersion"
 }
 
 if (-not $SkipGodotTests) {

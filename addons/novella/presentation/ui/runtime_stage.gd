@@ -23,6 +23,11 @@ func _ready() -> void:
 	_build_ui()
 
 
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		advance_requested.emit()
+
+
 func bind_managers(managers: Dictionary) -> void:
 	_build_ui()
 	var printer_manager = managers.get("printer_manager")

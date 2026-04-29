@@ -59,6 +59,21 @@ func choose_from_button(choice_index: int) -> void:
 
 Use `Novella.vm.get_pending_choice()` to inspect the current pending menu.
 
+## Runtime Player
+
+For the default playable UI flow, instance `res://addons/novella/presentation/ui/runtime_player.tscn`.
+
+```gdscript
+@onready var player = $RuntimePlayer
+
+func _ready() -> void:
+	player.bind_runtime(Novella)
+	var source := FileAccess.get_file_as_string("res://story/chapter_01.nvs")
+	player.start_script(source, "res://story/chapter_01.nvs")
+```
+
+`RuntimePlayer` enables text advance mode, renders pending choices as buttons, dispatches quick menu actions, and forwards manager state into the runtime stage.
+
 ## Custom Commands
 
 ```gdscript

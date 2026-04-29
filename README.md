@@ -1,6 +1,6 @@
 # Novella
 
-Novella is a Godot 4 visual novel / GalGame plugin. The current stable release is `1.0.1`. Godot 4.6 is the primary development and validation runtime, and Godot 4.3+ is the compatibility target for the Godot 4 line.
+Novella is a Godot 4 visual novel / GalGame plugin. The current stable release is `1.1.0`. Godot 4.6 is the primary development and validation runtime, and Godot 4.3+ is the compatibility target for the Godot 4 line.
 
 Novella is implemented in GDScript so projects can install, inspect, extend, and package it like a normal Godot addon. Godot also supports C++ / GDExtension plugins, but Novella keeps the 1.0 runtime script-first for portability, editor integration, and easier community contribution. Native modules can be added later behind the same public APIs if profiling shows a real bottleneck.
 
@@ -108,6 +108,17 @@ func _on_choice_waiting(choices: Array, _line: int) -> void:
 
 func _on_choice_button_pressed(choice_index: int) -> void:
 	Novella.vm.choose(choice_index)
+```
+
+For the default playable flow, instance `res://addons/novella/presentation/ui/runtime_player.tscn`, bind the runtime, and start a script:
+
+```gdscript
+@onready var player = $RuntimePlayer
+
+func _ready() -> void:
+	player.bind_runtime(Novella)
+	var source := FileAccess.get_file_as_string("res://story/chapter_01.nvs")
+	player.start_script(source, "res://story/chapter_01.nvs")
 ```
 
 ### 5. Script Syntax
@@ -387,7 +398,7 @@ Commit source code, addon files, examples, tests, public docs, and small placeho
 
 ### 16. Release Status
 
-Implemented in `1.0.1`:
+Implemented in `1.1.0`:
 
 - v0.1 runtime core: lexer, parser, AST, VM, variables, command registry, and basic flow commands.
 - v0.2 presentation core: typewriter timing, rich text conversion, ADV/NVL printer state, character/background/effect/audio/camera managers, and presentation commands.
@@ -396,6 +407,7 @@ Implemented in `1.0.1`:
 - v0.5 meta systems: localization, gallery, replay, achievements, meta commands, and basic meta UI scenes.
 - v1.0 release line: control-flow hardening, release validation, package script, GitHub Actions release check, showcase script, save/settings UI foundation, runtime stage, visual timeline editor foundation, migration helper, compatibility matrix, and public documentation.
 - v1.0.1 interaction polish: VM pending-choice mode for click-driven UI, `choice_waiting`, `get_pending_choice()`, and `choose(index)`.
+- v1.1.0 playable runtime: VM text advance mode, `RuntimePlayer` scene, choice buttons, quick menu dispatch, and mouse/keyboard advance input.
 
 Remaining verification:
 
@@ -765,7 +777,7 @@ print(status["message"])
 
 ### 16. 发布状态
 
-`1.0.1` 已包含：
+`1.1.0` 已包含：
 
 - v0.1 运行时核心：lexer、parser、AST、VM、变量、命令注册和基础流程命令。
 - v0.2 表现层核心：打字机、富文本、ADV/NVL printer 状态、角色/背景/特效/音频/镜头管理器和表现层命令。
@@ -774,6 +786,7 @@ print(status["message"])
 - v0.5 元系统：本地化、画廊、回放、成就、元命令和基础元系统 UI。
 - v1.0 发布线：流程控制加固、发布校验、打包脚本、GitHub Actions 发布检查、showcase 剧本、存档/设置 UI 基础、运行时舞台、可视化时间线编辑器基础、迁移器、兼容矩阵和公开文档。
 - v1.0.1 交互打磨：VM 等待选项模式，支持点击式 UI 通过 `choice_waiting`、`get_pending_choice()` 和 `choose(index)` 接入。
+- v1.1.0 可玩运行时：VM 文本等待推进、`RuntimePlayer` 场景、选项按钮、quick menu 派发和鼠标/键盘推进输入。
 
 剩余验证：
 

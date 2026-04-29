@@ -13,6 +13,7 @@ signal dialogue_requested(speaker: String, text: String, line: int)
 signal narration_requested(text: String, line: int)
 signal choice_requested(choices: Array, selected_index: int, line: int)
 signal choice_waiting(choices: Array, line: int)
+signal advance_waiting(kind: StringName, line: int)
 signal node_completed(node: Variant)
 signal runtime_error(message: String, line: int)
 signal state_restored(state: Dictionary)
@@ -34,11 +35,15 @@ var achievement_manager: Variant = null
 var state_providers: Dictionary = {}
 var choice_strategy: Callable = Callable()
 var auto_select_choices: bool = true
+var pause_on_text: bool = false
 
 var ast = null
 var current_index: int = 0
 var call_stack: Array[int] = []
 var transcript: Array = []
+var waiting_for_advance: bool = false
+var pending_advance_kind: StringName = &""
+var pending_advance_line: int = 0
 var waiting_for_choice: bool = false
 var pending_choices: Array = []
 var pending_choice_line: int = 0
@@ -47,13 +52,16 @@ var label_manager := LabelManager.new()
 var evaluator := ExpressionEvaluator.new()
 var interpolator := TextInterpolator.new()
 
+var _pending_advance_node = null
 var _pending_choice_node = null
+var _inline_depth: int = 0
 
 func load_script(p_ast) -> void:
 	ast = p_ast
 	current_index = 0
 	call_stack.clear()
 	transcript.clear()
+	_clear_pending_advance()
 	_clear_pending_choice()
 	if ast != null:
 		label_manager.rebuild(ast.children)
@@ -71,7 +79,7 @@ func continue_run(max_steps: int = 10000) -> Array:
 	if ast == null:
 		_emit_error("No script loaded.", 0)
 		return transcript
-	if waiting_for_choice:
+	if waiting_for_choice or waiting_for_advance:
 		return transcript
 	var steps := 0
 	while current_index < ast.children.size():
@@ -112,6 +120,25 @@ func choose(choice_index: int, max_steps: int = 10000) -> Dictionary:
 	}
 
 
+func advance(max_steps: int = 10000) -> Dictionary:
+	if waiting_for_choice:
+		return {"ok": false, "error": "VM is waiting for a choice."}
+	if not waiting_for_advance or _pending_advance_node == null:
+		return {"ok": false, "error": "VM is not waiting for text advance."}
+	var node = _pending_advance_node
+	_clear_pending_advance()
+	var stopped := _apply_execution_result({"ok": true}, node)
+	if not stopped:
+		continue_run(max_steps)
+	return {
+		"ok": not transcript.any(func(entry): return entry.get("type", "") == "error"),
+		"waiting_for_advance": waiting_for_advance,
+		"waiting_for_choice": waiting_for_choice,
+		"finished": is_finished(),
+		"transcript": transcript.duplicate(true),
+	}
+
+
 func get_pending_choice() -> Dictionary:
 	return {
 		"waiting": waiting_for_choice,
@@ -121,8 +148,16 @@ func get_pending_choice() -> Dictionary:
 	}
 
 
+func get_pending_advance() -> Dictionary:
+	return {
+		"waiting": waiting_for_advance,
+		"kind": pending_advance_kind,
+		"line": pending_advance_line,
+	}
+
+
 func is_finished() -> bool:
-	return ast != null and current_index >= ast.children.size() and not waiting_for_choice
+	return ast != null and current_index >= ast.children.size() and not waiting_for_choice and not waiting_for_advance
 
 
 func _execute_node(node) -> Dictionary:
@@ -143,6 +178,9 @@ func _execute_node(node) -> Dictionary:
 				var inline_dialogue_result := _execute_inline_nodes(node.inline_commands)
 				if _should_propagate_result(inline_dialogue_result):
 					return inline_dialogue_result
+			if pause_on_text and _inline_depth == 0:
+				_set_pending_advance(node, &"dialogue")
+				return {"ok": true, "waiting": true}
 			return {"ok": true}
 		&"narration":
 			_push_rollback_snapshot(node)
@@ -158,6 +196,9 @@ func _execute_node(node) -> Dictionary:
 				var inline_narration_result := _execute_inline_nodes(node.inline_commands)
 				if _should_propagate_result(inline_narration_result):
 					return inline_narration_result
+			if pause_on_text and _inline_depth == 0:
+				_set_pending_advance(node, &"narration")
+				return {"ok": true, "waiting": true}
 			return {"ok": true}
 		&"command":
 			return _execute_command_node(node)
@@ -261,14 +302,18 @@ func _execute_while(node) -> Dictionary:
 
 func _execute_inline_nodes(nodes: Array) -> Dictionary:
 	var index := 0
+	_inline_depth += 1
 	while index < nodes.size():
 		var result := _execute_node(nodes[index])
 		if bool(result.get("waiting", false)):
+			_inline_depth -= 1
 			return result
 		node_completed.emit(nodes[index])
 		if _should_propagate_result(result):
+			_inline_depth -= 1
 			return result
 		index += 1
+	_inline_depth -= 1
 	return {"ok": true}
 
 
@@ -339,6 +384,21 @@ func _set_pending_choice(node, choices: Array, available: Array) -> void:
 	choice_waiting.emit(pending_choices.duplicate(true), pending_choice_line)
 
 
+func _set_pending_advance(node, kind: StringName) -> void:
+	waiting_for_advance = true
+	_pending_advance_node = node
+	pending_advance_kind = kind
+	pending_advance_line = int(node.line)
+	advance_waiting.emit(kind, pending_advance_line)
+
+
+func _clear_pending_advance() -> void:
+	waiting_for_advance = false
+	_pending_advance_node = null
+	pending_advance_kind = &""
+	pending_advance_line = 0
+
+
 func _clear_pending_choice() -> void:
 	waiting_for_choice = false
 	_pending_choice_node = null
@@ -378,6 +438,9 @@ func snapshot_state() -> Dictionary:
 		"current_index": current_index,
 		"call_stack": call_stack.duplicate(true),
 		"transcript": transcript.duplicate(true),
+		"waiting_for_advance": waiting_for_advance,
+		"pending_advance_kind": String(pending_advance_kind),
+		"pending_advance_line": pending_advance_line,
 		"waiting_for_choice": waiting_for_choice,
 		"pending_choices": pending_choices.duplicate(true),
 		"pending_available_indices": pending_available_indices.duplicate(true),
@@ -391,6 +454,12 @@ func restore_state(state: Dictionary) -> void:
 	current_index = int(state.get("current_index", current_index))
 	call_stack = state.get("call_stack", call_stack).duplicate(true)
 	transcript = state.get("transcript", transcript).duplicate(true)
+	waiting_for_advance = bool(state.get("waiting_for_advance", false))
+	pending_advance_kind = StringName(str(state.get("pending_advance_kind", "")))
+	pending_advance_line = int(state.get("pending_advance_line", 0))
+	_pending_advance_node = null
+	if waiting_for_advance and ast != null and current_index >= 0 and current_index < ast.children.size():
+		_pending_advance_node = ast.children[current_index]
 	waiting_for_choice = bool(state.get("waiting_for_choice", false))
 	pending_choices = state.get("pending_choices", []).duplicate(true)
 	pending_available_indices = state.get("pending_available_indices", []).duplicate(true)

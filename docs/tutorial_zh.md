@@ -2,7 +2,7 @@
 
 这篇教程按“从零开始做一个可运行 Demo”的顺序编写。完成后，你会得到一个 Godot 4 项目，能加载 `.nvs` 剧本，执行对话、旁白、菜单、变量、背景、角色、音频状态、存档、设置、本地化、成就和发布校验。
 
-Novella 1.0.1 的主测试环境是 Godot 4.6，兼容目标是 Godot 4.3 及以上的 Godot 4.x。Godot 3.x 不在 1.0 支持范围内。
+Novella 1.1.0 的主测试环境是 Godot 4.6，兼容目标是 Godot 4.3 及以上的 Godot 4.x。Godot 3.x 不在 1.0 支持范围内。
 
 ## 1. 准备环境
 
@@ -254,6 +254,36 @@ func _clear_choice_buttons() -> void:
 var pending := Novella.vm.get_pending_choice()
 print(pending["choices"])
 ```
+
+## 7.1 使用默认 RuntimePlayer
+
+从 1.1.0 开始，推荐用 `RuntimePlayer` 快速搭建可玩的默认流程。
+
+1. 新建一个 `Control` 场景。
+2. 把 `res://addons/novella/presentation/ui/runtime_player.tscn` 实例化为子节点。
+3. 子节点命名为 `RuntimePlayer`。
+4. 给根节点挂载脚本。
+
+```gdscript
+extends Control
+
+@onready var player = $RuntimePlayer
+
+func _ready() -> void:
+	player.bind_runtime(Novella)
+	var source := FileAccess.get_file_as_string("res://story/chapter_01.nvs")
+	player.start_script(source, "res://story/chapter_01.nvs")
+```
+
+`RuntimePlayer` 会自动：
+
+- 绑定运行时舞台。
+- 启用对话/旁白点击推进。
+- 把菜单选项显示为按钮。
+- 派发 quick menu 动作。
+- 支持鼠标左键、Enter、Space 推进文本。
+
+如果菜单选项后还要显示可点击推进的台词，推荐让选项 `jump` 到独立 label，再在 label 里写后续对话。
 
 ## 8. 使用变量和条件
 
@@ -537,7 +567,7 @@ func print_compatibility() -> void:
 正常通过时会看到类似输出：
 
 ```text
-Novella v1.0.1 tests passed.
+Novella v1.1.0 tests passed.
 ```
 
 如果 Windows 输出：
@@ -580,7 +610,7 @@ ERROR: Failed to read the root certificate store.
 生成文件：
 
 ```text
-dist/novella-1.0.1.zip
+dist/novella-1.1.0.zip
 ```
 
 `dist/` 已被忽略，不要提交。打包脚本只归档已跟踪的源码、示例、测试、脚本、公开文档、`README.md`、`LICENSE` 和 `project.godot`。

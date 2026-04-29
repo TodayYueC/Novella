@@ -16,6 +16,7 @@ const RichTextParser := preload("res://addons/novella/presentation/rich_text_par
 const TypewriterEffect := preload("res://addons/novella/presentation/typewriter_effect.gd")
 const PrinterManager := preload("res://addons/novella/presentation/printer_manager.gd")
 const RuntimeStageScene := preload("res://addons/novella/presentation/ui/runtime_stage.tscn")
+const RuntimePlayerScene := preload("res://addons/novella/presentation/ui/runtime_player.tscn")
 const CharacterManager := preload("res://addons/novella/presentation/characters/character_manager.gd")
 const BackgroundManager := preload("res://addons/novella/presentation/backgrounds/background_manager.gd")
 const EffectManager := preload("res://addons/novella/presentation/effects/effect_manager.gd")
@@ -52,7 +53,7 @@ var failures: Array[String] = []
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v1.0.1 tests passed.")
+		print("Novella v1.1.0 tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -68,6 +69,7 @@ func _run_all() -> void:
 	_test_printer_manager()
 	_test_printer_views()
 	_test_runtime_stage_view()
+	_test_runtime_player_view()
 	_test_v0_2_managers()
 	_test_v0_3_interaction_managers()
 	_test_v0_3_interaction_views()
@@ -214,6 +216,60 @@ func _test_runtime_stage_view() -> void:
 	stage.clear()
 	_assert(stage.get_node("CharacterLayer").get_child_count() == 0, "RuntimeStage should clear characters.")
 	stage.free()
+
+
+func _test_runtime_player_view() -> void:
+	var managers := _make_v0_5_managers()
+	var variables: VariableManager = managers["variable_manager"]
+	var registry := CommandRegistry.new()
+	var basic := BasicCommands.new()
+	var presentation := PresentationCommands.new()
+	var interaction := InteractionCommands.new()
+	var meta := MetaCommands.new()
+	basic.register_all(registry, variables)
+	presentation.register_all(registry, managers)
+	interaction.register_all(registry, managers)
+	meta.register_all(registry, managers)
+	var vm := VM.new()
+	vm.variable_manager = variables
+	vm.command_registry = registry
+	vm.printer_manager = managers["printer_manager"]
+	vm.choice_manager = managers["choice_manager"]
+	vm.save_manager = managers["save_manager"]
+	vm.rollback_manager = managers["rollback_manager"]
+	vm.skip_manager = managers["skip_manager"]
+	vm.auto_manager = managers["auto_manager"]
+	vm.backlog_manager = managers["backlog_manager"]
+	vm.quick_menu_manager = managers["quick_menu_manager"]
+	vm.localization_manager = managers["localization_manager"]
+	vm.gallery_manager = managers["gallery_manager"]
+	vm.achievement_manager = managers["achievement_manager"]
+	vm.state_providers = _state_providers_from(managers)
+	var player = RuntimePlayerScene.instantiate()
+	var runtime_context := managers.duplicate()
+	runtime_context["parser"] = Parser.new()
+	runtime_context["vm"] = vm
+	runtime_context["quick_menu_manager"] = managers["quick_menu_manager"]
+	player.bind_runtime(runtime_context)
+	var transcript = player.start_script(_v1_1_runtime_player_script(), "runtime_player.nvs")
+	_assert(vm.pause_on_text, "RuntimePlayer should enable text pause mode.")
+	_assert(not vm.auto_select_choices, "RuntimePlayer should disable automatic menu choices.")
+	_assert(vm.waiting_for_advance, "RuntimePlayer should pause on the first dialogue line.")
+	_assert(transcript.size() == 1 and transcript[0]["type"] == "dialogue", "RuntimePlayer should present the first line before waiting.")
+	_assert(player.get_node("RuntimeStage/PrinterLayer/AdvPrinter/NameLabel").text == "Ryone", "RuntimePlayer should bind the stage to printer output.")
+	player.advance()
+	_assert(vm.waiting_for_choice, "RuntimePlayer should advance from text wait to choice wait.")
+	_assert(player.get_node("ChoicePanel").visible, "RuntimePlayer should show choice buttons when the VM waits for a menu.")
+	_assert(player.get_node("ChoicePanel/ChoiceList").get_child_count() == 2, "RuntimePlayer should create one button per choice.")
+	player.choose_choice(1)
+	_assert(variables.get_variable(&"path") == "right", "RuntimePlayer should route selected choice actions into the VM.")
+	_assert(vm.waiting_for_advance, "RuntimePlayer should pause on the branch dialogue after choosing.")
+	_assert(player.get_node("RuntimeStage/PrinterLayer/AdvPrinter/TextLabel").text.contains("Right path."), "RuntimePlayer should present the selected branch line.")
+	player.advance()
+	_assert(vm.is_finished(), "RuntimePlayer should finish after advancing the last line.")
+	var quick_result: Dictionary = player.dispatch_quick_action(&"auto")
+	_assert(bool(quick_result.get("ok", false)), "RuntimePlayer should dispatch quick menu actions.")
+	player.free()
 
 
 func _test_v0_2_managers() -> void:
@@ -831,6 +887,27 @@ label ending:
     Ryone: Path: {path}."""
 
 
+func _v1_1_runtime_player_script() -> String:
+	return """@var path = ""
+
+label start:
+    Ryone: Pick one.
+    menu:
+        "Left":
+            @set path = "left"
+            jump left_path
+        "Right":
+            @set path = "right"
+            jump right_path
+
+label left_path:
+    Ryone: Left path.
+    return
+
+label right_path:
+    Ryone: Right path."""
+
+
 func _sample_script() -> String:
 	return """@var affinity = 0
 
@@ -1017,6 +1094,8 @@ func _release_file_list_for_tests() -> Array:
 		"addons/novella/release/compatibility_matrix.gd",
 		"addons/novella/release/release_manifest.gd",
 		"addons/novella/release/release_validator.gd",
+		"addons/novella/presentation/ui/runtime_player.tscn",
+		"addons/novella/presentation/ui/runtime_player.gd",
 		"addons/novella/presentation/ui/runtime_stage.tscn",
 		"addons/novella/presentation/ui/runtime_stage.gd",
 		"addons/novella/script/script_migration.gd",
@@ -1046,6 +1125,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/v1.0-rc.6.md",
 		"docs/v1.0.0.md",
 		"docs/v1.0.1.md",
+		"docs/v1.1.0.md",
 		"examples/scripts/v1_0_showcase.nvs",
 		".github/workflows/release-check.yml",
 		"scripts/test-godot.ps1",
@@ -1061,7 +1141,7 @@ func _plugin_cfg_text_for_tests() -> String:
 name="Novella"
 description="Commercial-grade visual novel / GalGame framework for Godot 4."
 author="TodayYueC"
-version="1.0.1"
+version="1.1.0"
 script="novella_editor_plugin.gd"
 """
 
