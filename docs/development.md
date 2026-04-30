@@ -17,28 +17,17 @@ The planned split is:
 
 ## Versioned Roadmap After v1.3.0
 
-Future iterations must follow this version order. Each feature version is completed as one milestone, then tested, packaged, committed, tagged, pushed, and published as a GitHub Release before moving to the next version.
+Future iterations must follow this version order. Each phase version is completed as one milestone, then tested, packaged, committed, tagged, pushed, and published as a GitHub Release before moving to the next phase.
 
-Patch releases such as `v1.4.1` are reserved for urgent regressions only. Planned feature work should not be split into ad-hoc mini versions such as `v1.4.1`, `v1.4.2`, or `v1.4.3`; the next planned feature milestone remains the next minor version.
+Patch releases such as `v1.4.1` are reserved for urgent regressions only. Planned feature work should not be split into ad-hoc mini versions such as `v1.4.1`, `v1.4.2`, or `v1.4.3`; the next planned feature milestone remains the next phase version.
 
-| Version | Target Window | Milestone |
+| Version | Phase | Milestone |
 | --- | --- | --- |
-| `v1.4.0` | 2026-05-01 to 2026-05-03 | Editor live preview: run the current timeline, interact with choices, watch variables, and jump from preview state back to script lines. |
-| `v1.5.0` | 2026-05-04 to 2026-05-07 | Production timeline editor: drag reorder, inline editing, collapse/expand, color coding, copy/paste/delete, and keyboard shortcuts. |
-| `v1.6.0` | 2026-05-08 to 2026-05-11 | Character and asset editors: character resources, layered portraits, side portraits, voice folders, backgrounds, BGM, SE, and voice asset management. |
-| `v1.7.0` | 2026-05-12 to 2026-05-15 | UI and skin system: `.tres` styles, default theme, confirm dialogs, toast notifications, quick menu configuration, and hide-dialogue behavior. |
-| `v1.8.0` | 2026-05-16 to 2026-05-20 | Presentation completion: rendered characters/backgrounds, transition animation, camera animation, screen effects, and shader registration baseline. |
-| `v1.9.0` | 2026-05-21 to 2026-05-24 | Audio and voice completion: BGM/SE/Voice playback, loop metadata, automatic voice association, and backlog voice replay. |
-| `v1.10.0` | 2026-05-25 to 2026-05-28 | Save, rollback, skip, and auto polish: save import/export, optional encryption, arbitrary rollback targets, and persistent read-state tracking. |
-| `v1.11.0` | 2026-05-29 to 2026-06-01 | Localization completion: locale typography, localized asset overrides, on-demand language packs, line split/merge support, and plural-form baseline. |
-| `v1.12.0` | 2026-06-02 to 2026-06-05 | Gallery, music room, route map, and achievement UI: CG viewing, BGM list playback, clickable route nodes, and achievement toast flow. |
-| `v1.13.0` | 2026-06-06 to 2026-06-09 | Debug and developer UI: variable panel, console panel, node inspector, performance panel, and visual flow graph view. |
-| `v1.14.0` | 2026-06-10 to 2026-06-14 | Performance and platform work: on-demand loading implementation, audio streaming validation, memory/FPS baseline, touch input, and gamepad input. |
-| `v1.15.0` | 2026-06-15 to 2026-06-18 | Documentation and example completion: full example VN project, bilingual API docs, command docs, and tutorial refresh. |
-| `v1.16.0` | 2026-06-19 to 2026-06-23 | Compatibility matrix: Godot 4.3, 4.4, 4.5, and 4.6 validation and API compatibility fixes. |
-| `v1.17.0` | 2026-06-24 to 2026-06-28 | Full PRD audit release: close remaining PRD gaps and raise targeted test coverage. |
-| `v1.18.0` | 2026-06-29 to 2026-07-03 | Release candidate: freeze features, fix only bugs, polish packaging, and verify release artifacts. |
-| `v2.0.0` | 2026-07-04 to 2026-07-07 | Full PRD official release: final acceptance, packaging, tag, GitHub Release, and public-ready artifact. |
+| `v1.4.0` | Editor, assets, and UI shaped into production tools | Complete editor live preview, production timeline editing, character/resource editors, asset management, UI skin/style resources, quick menu polish, confirm dialogs, toast notifications, and hide-dialogue behavior. |
+| `v1.5.0` | Presentation, audio, and save systems completed | Complete rendered character/background presentation, transitions, camera animation, screen effects, shader registration, BGM/SE/Voice playback, automatic voice association, backlog voice replay, save import/export, optional encryption, arbitrary rollback targets, and persistent read-state tracking. |
+| `v1.6.0` | Meta systems, debugging, and performance completed | Complete localization typography and asset overrides, on-demand language packs, line split/merge support, plural-form baseline, gallery/music room/route map/achievement UI, debug panels, command console UI, node inspector, performance panel, visual flow graph, on-demand loading implementation, audio streaming validation, memory/FPS baseline, touch input, and gamepad input. |
+| `v1.7.0` | Documentation, examples, compatibility, and PRD audit | Complete the full example VN project, bilingual API docs, command docs, tutorial refresh, Godot 4.3/4.4/4.5/4.6 compatibility matrix, API compatibility fixes, full PRD audit, remaining gap closure, and targeted test coverage improvements. |
+| `v2.0.0` | Full PRD official release | Final acceptance, release-candidate stabilization, packaging polish, artifact verification, tag, GitHub Release, and public-ready full PRD release. |
 
 Every milestone uses the same release checklist:
 
