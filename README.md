@@ -1,6 +1,6 @@
 # Novella
 
-Novella is a Godot 4 visual novel / GalGame plugin. The current stable release is `1.1.0`. Godot 4.6 is the primary development and validation runtime, and Godot 4.3+ is the compatibility target for the Godot 4 line.
+Novella is a Godot 4 visual novel / GalGame plugin. The current stable release is `1.2.0`. Godot 4.6 is the primary development and validation runtime, and Godot 4.3+ is the compatibility target for the Godot 4 line.
 
 Novella is implemented in GDScript so projects can install, inspect, extend, and package it like a normal Godot addon. Godot also supports C++ / GDExtension plugins, but Novella keeps the 1.0 runtime script-first for portability, editor integration, and easier community contribution. Native modules can be added later behind the same public APIs if profiling shows a real bottleneck.
 
@@ -308,6 +308,8 @@ func _screen_tint(raw_arguments: String, context: Dictionary) -> Dictionary:
 ```gdscript
 var csv := Novella.localization_manager.export_csv(&"en")
 Novella.localization_manager.import_csv(&"ja", "key,text\nline.hello,\"こんにちは {player}.\"\n", true)
+var template := Novella.localization_manager.export_template([&"line.hello"], &"ja")
+var coverage := Novella.localization_manager.coverage_report([&"line.hello"], [&"ja"])
 ```
 
 CSV columns are `key,text`. Quoted fields and escaped quotes are supported.
@@ -324,7 +326,14 @@ After enabling the plugin, Godot shows a `Novella` editor dock. The current dock
 - Index likely character, background, audio, script, and UI assets.
 - Open the visual timeline panel foundation.
 
-The visual editor in 1.0 is a foundation layer. It can model, edit, undo, redo, and serialize timeline events, but it is not yet a full production-grade drag-and-drop node editor.
+The visual editor in 1.2 is still a foundation layer, but it now supports production workflow helpers: timeline search/replace/filtering, nested menu/branch export, asset reference validation, localization template export/import, and localized script preview.
+
+```gdscript
+var workflow := NovellaProductionWorkflow.new()
+var analysis := workflow.analyze_script(source, "chapter_01.nvs", known_commands, asset_paths)
+var csv := workflow.export_localization_template([{"source": source, "file_path": "chapter_01.nvs"}], &"zh")
+var preview := workflow.preview_localized_source(source, &"zh", "chapter_01.nvs")
+```
 
 ### 11. Script Migration
 
@@ -398,7 +407,7 @@ Commit source code, addon files, examples, tests, public docs, and small placeho
 
 ### 16. Release Status
 
-Implemented in `1.1.0`:
+Implemented in `1.2.0`:
 
 - v0.1 runtime core: lexer, parser, AST, VM, variables, command registry, and basic flow commands.
 - v0.2 presentation core: typewriter timing, rich text conversion, ADV/NVL printer state, character/background/effect/audio/camera managers, and presentation commands.
@@ -408,6 +417,7 @@ Implemented in `1.1.0`:
 - v1.0 release line: control-flow hardening, release validation, package script, GitHub Actions release check, showcase script, save/settings UI foundation, runtime stage, visual timeline editor foundation, migration helper, compatibility matrix, and public documentation.
 - v1.0.1 interaction polish: VM pending-choice mode for click-driven UI, `choice_waiting`, `get_pending_choice()`, and `choose(index)`.
 - v1.1.0 playable runtime: VM text advance mode, `RuntimePlayer` scene, choice buttons, quick menu dispatch, and mouse/keyboard advance input.
+- v1.2.0 production workflow: `NovellaProductionWorkflow`, richer asset indexing, reference validation, timeline search/replace/filtering, nested timeline export, localization templates, coverage reports, and localized script preview.
 
 Remaining verification:
 
@@ -777,7 +787,7 @@ print(status["message"])
 
 ### 16. 发布状态
 
-`1.1.0` 已包含：
+`1.2.0` 已包含：
 
 - v0.1 运行时核心：lexer、parser、AST、VM、变量、命令注册和基础流程命令。
 - v0.2 表现层核心：打字机、富文本、ADV/NVL printer 状态、角色/背景/特效/音频/镜头管理器和表现层命令。
@@ -787,6 +797,7 @@ print(status["message"])
 - v1.0 发布线：流程控制加固、发布校验、打包脚本、GitHub Actions 发布检查、showcase 剧本、存档/设置 UI 基础、运行时舞台、可视化时间线编辑器基础、迁移器、兼容矩阵和公开文档。
 - v1.0.1 交互打磨：VM 等待选项模式，支持点击式 UI 通过 `choice_waiting`、`get_pending_choice()` 和 `choose(index)` 接入。
 - v1.1.0 可玩运行时：VM 文本等待推进、`RuntimePlayer` 场景、选项按钮、quick menu 派发和鼠标/键盘推进输入。
+- v1.2.0 制作工作流：`NovellaProductionWorkflow`、更完整的资源索引、引用完整性检查、时间线搜索/替换/过滤、嵌套时间线导出、本地化模板、覆盖率统计和本地化预览。
 
 剩余验证：
 

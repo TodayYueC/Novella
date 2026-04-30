@@ -36,6 +36,7 @@ const EditorController := preload("res://addons/novella/editor/editor_controller
 const OutlineBuilder := preload("res://addons/novella/editor/script_outline_builder.gd")
 const TimelineModel := preload("res://addons/novella/editor/timeline_model.gd")
 const TimelineEditorModel := preload("res://addons/novella/editor/timeline_editor_model.gd")
+const ProductionWorkflow := preload("res://addons/novella/editor/production_workflow.gd")
 const TimelineEditorPanelScene := preload("res://addons/novella/editor/ui/timeline_editor_panel.tscn")
 const ScriptDiagnostics := preload("res://addons/novella/editor/script_diagnostics.gd")
 const TemplateLibrary := preload("res://addons/novella/editor/script_template_library.gd")
@@ -53,7 +54,7 @@ var failures: Array[String] = []
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v1.1.0 tests passed.")
+		print("Novella v1.2.0 tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -83,6 +84,7 @@ func _run_all() -> void:
 	_test_v1_0_1_interactive_choice_resume()
 	_test_v1_0_release_hardening()
 	_test_v1_0_release_tools()
+	_test_v1_2_production_workflow()
 	_test_vm_milestone_script()
 
 
@@ -533,6 +535,10 @@ func _test_v0_4_editor_models() -> void:
 	_assert(timeline_editor.undo()["ok"], "TimelineEditorModel should support undo.")
 	_assert(timeline_editor.redo()["ok"], "TimelineEditorModel should support redo.")
 	_assert(timeline_editor.to_script().contains("Ryone: Updated"), "TimelineEditorModel should serialize events back to script text.")
+	_assert(timeline_editor.find_events("Updated").size() == 1, "TimelineEditorModel should search event fields.")
+	var replaced := timeline_editor.replace_text("Updated", "Timeline")
+	_assert(replaced["replaced"] == 1, "TimelineEditorModel should replace text across events.")
+	_assert(timeline_editor.to_script().contains("Ryone: Timeline"), "TimelineEditorModel should serialize replaced text.")
 
 	var bad_analysis := controller.analyze_source("label start:\n    jump missing\n    @unknown value\n", "bad.nvs", _known_commands_for_tests())
 	_assert(bad_analysis["diagnostics"]["has_errors"], "ScriptDiagnostics should catch missing jump targets.")
@@ -556,6 +562,10 @@ func _test_v0_4_editor_models() -> void:
 	_assert(index["characters"].size() == 1, "AssetIndex should classify character art.")
 	_assert(index["audio"].size() == 1, "AssetIndex should classify audio.")
 	_assert(indexer.suggest_for_command(index, &"char").size() == 1, "AssetIndex should suggest character assets for @char.")
+	_assert(indexer.find_by_id(index, "ryone", ["characters"]).get("path", "").contains("ryone"), "AssetIndex should find assets by folder or id tags.")
+	var reference_report := indexer.validate_references(index, [{"id": "school", "categories": ["backgrounds"]}, {"id": "missing", "categories": ["audio"]}])
+	_assert(reference_report["valid_assets"].size() == 1, "AssetIndex should validate known references.")
+	_assert(reference_report["missing_assets"].size() == 1, "AssetIndex should report missing references.")
 
 
 func _test_v0_4_editor_dock() -> void:
@@ -602,6 +612,12 @@ func _test_v0_5_meta_managers() -> void:
 	localization.set_locale(&"fr")
 	_assert(localization.translate(&"hello", variables) == "Bonjour Yue.", "LocalizationManager should use imported CSV translations.")
 	_assert(localization.translate(&"quote") == "A \"quoted\" line", "LocalizationManager should unescape quoted CSV fields.")
+	var template := localization.export_template([&"hello", &"missing"], &"fr")
+	_assert(template.contains("hello,\"Bonjour {player}.\"") or template.contains("hello,Bonjour {player}."), "LocalizationManager should export translator templates.")
+	var coverage := localization.coverage_report([&"hello", &"missing"], [&"fr"])
+	_assert(coverage["locales"]["fr"]["translated"] == 1, "LocalizationManager should report translation coverage.")
+	localization.translate(&"missing")
+	_assert(localization.merge_missing_keys(&"fr")["added"] >= 1, "LocalizationManager should merge missing keys into a locale catalog.")
 
 	var gallery := GalleryManager.new()
 	gallery.register_item(&"cg_school", {"type": "cg", "title": "School", "asset": "school.png"})
@@ -807,11 +823,50 @@ func _test_v1_0_release_tools() -> void:
 	_assert(result["ok"], "ReleaseValidator should accept the release file set: %s" % [result["issues"]])
 	var package_files := validator.package_files(file_list)
 	_assert(package_files.has("addons/novella/plugin.cfg"), "ReleaseValidator should include plugin.cfg in package files.")
+	_assert(package_files.has("tests/run_tests.gd"), "ReleaseValidator should include the test runner in package files.")
 	_assert(not package_files.has("GodotEngine/Godot.exe"), "ReleaseValidator should exclude engine files from package files.")
 	var bad_result := validator.validate_release(file_list + ["GodotEngine/Godot.exe", "Novella_项目需求文档.md"], plugin_cfg_text)
 	_assert(not bad_result["ok"], "ReleaseValidator should reject forbidden tracked paths.")
 	var mismatch := validator.validate_version_pair(plugin_cfg_text.replace(Constants.VERSION, "0.5.0-alpha"))
 	_assert(not mismatch["ok"], "ReleaseValidator should reject version mismatches.")
+
+
+func _test_v1_2_production_workflow() -> void:
+	var asset_paths := [
+		"res://art/backgrounds/school_day.png",
+		"res://art/characters/ryone/uniform_happy.png",
+		"res://audio/bgm/main_theme.ogg",
+		"res://story/chapter_01.nvs",
+	]
+	var source := _v1_2_production_workflow_script()
+	var workflow := ProductionWorkflow.new()
+	var index := workflow.build_project_index(asset_paths)
+	_assert(workflow.asset_index.summarize(index)["total"] == 4, "ProductionWorkflow should build a complete project asset index.")
+	var analysis := workflow.analyze_script(source, "chapter_01.nvs", _known_commands_for_tests(), asset_paths)
+	_assert(analysis["ok"], "ProductionWorkflow should analyze a valid production script: %s" % [analysis])
+	_assert(analysis["assets"]["missing_assets"].is_empty(), "ProductionWorkflow should validate referenced assets.")
+	_assert(analysis["localization"]["keys"].has("line.greeting"), "ProductionWorkflow should extract translation command keys.")
+	_assert(analysis["localization"]["keys"].has("choice.stay"), "ProductionWorkflow should extract localized choice keys.")
+	var missing_assets := workflow.validate_asset_references(source, asset_paths.slice(0, 2), "chapter_01.nvs")
+	_assert(missing_assets["missing_assets"].any(func(item): return item.get("id", "") == "main_theme"), "ProductionWorkflow should report missing referenced audio.")
+
+	var template := workflow.export_localization_template([{"source": source, "file_path": "chapter_01.nvs"}], &"zh")
+	_assert(template.contains("line.greeting"), "ProductionWorkflow should export localization templates.")
+	var imported := workflow.import_localization_csv(&"zh", "key,text\nline.greeting,Localized hello.\nchoice.stay,Localized stay\n", false)
+	_assert(imported["imported"] == 2, "ProductionWorkflow should import localization CSV files.")
+	var preview := workflow.preview_localized_source(source, &"zh", "chapter_01.nvs")
+	_assert(str(preview["script"]).contains("Localized hello."), "ProductionWorkflow should preview localized dialogue.")
+	_assert(str(preview["script"]).contains("\"Localized stay\""), "ProductionWorkflow should preview localized menu choices.")
+
+	var session := workflow.create_timeline_session(source, "chapter_01.nvs")
+	_assert(session["ok"] and session["events"].size() > 0, "ProductionWorkflow should create timeline edit sessions.")
+	var session_events: Array = session["events"]
+	session_events[7] = session_events[7].duplicate(true)
+	session_events[7]["text"] = "Hello from timeline."
+	var exported := workflow.export_timeline_script(session_events)
+	_assert(exported.contains("Hello from timeline."), "ProductionWorkflow should export edited timeline scripts.")
+	var roundtrip := workflow.roundtrip_script(source, "chapter_01.nvs")
+	_assert(roundtrip["ok"], "ProductionWorkflow should round-trip editable scripts without parse errors: %s" % [roundtrip])
 
 
 func _test_vm_milestone_script() -> void:
@@ -906,6 +961,22 @@ label left_path:
 
 label right_path:
     Ryone: Right path."""
+
+
+func _v1_2_production_workflow_script() -> String:
+	return """@var affinity = 1
+
+label start:
+    @translation en line.greeting text:"Welcome {player}."
+    @translation en choice.stay text:"Stay"
+    @bg school_day transition:dissolve
+    @char ryone uniform happy pos:left
+    @play_music main_theme fade:1.0
+    Ryone: $line.greeting
+    menu:
+        "$choice.stay" if affinity > 0:
+            @set affinity += 1
+            Ryone: $choice.stay"""
 
 
 func _sample_script() -> String:
@@ -1088,6 +1159,7 @@ func _release_file_list_for_tests() -> Array:
 		"addons/novella/novella.gd",
 		"addons/novella/novella_editor_plugin.gd",
 		"addons/novella/core/constants.gd",
+		"addons/novella/editor/production_workflow.gd",
 		"addons/novella/editor/timeline_editor_model.gd",
 		"addons/novella/editor/ui/timeline_editor_panel.tscn",
 		"addons/novella/editor/ui/timeline_editor_panel.gd",
@@ -1126,6 +1198,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/v1.0.0.md",
 		"docs/v1.0.1.md",
 		"docs/v1.1.0.md",
+		"docs/v1.2.0.md",
 		"examples/scripts/v1_0_showcase.nvs",
 		".github/workflows/release-check.yml",
 		"scripts/test-godot.ps1",
@@ -1141,7 +1214,7 @@ func _plugin_cfg_text_for_tests() -> String:
 name="Novella"
 description="Commercial-grade visual novel / GalGame framework for Godot 4."
 author="TodayYueC"
-version="1.1.0"
+version="1.2.0"
 script="novella_editor_plugin.gd"
 """
 

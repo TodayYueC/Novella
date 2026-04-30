@@ -126,6 +126,59 @@ func import_csv(locale: StringName, csv_text: String, replace: bool = false) -> 
 	return {"ok": true, "locale": String(locale), "imported": imported}
 
 
+func export_template(keys: Array, locale: StringName = &"", include_existing: bool = true) -> String:
+	var target := current_locale if locale == &"" else locale
+	add_locale(target)
+	var unique_keys := _unique_sorted_keys(keys)
+	var lines := ["key,text"]
+	for key_text in unique_keys:
+		var key := StringName(str(key_text))
+		var value := ""
+		if include_existing and catalogs[target].has(key):
+			value = str(catalogs[target][key])
+		lines.append("%s,%s" % [_csv_escape(String(key)), _csv_escape(value)])
+	return "\n".join(lines)
+
+
+func merge_missing_keys(locale: StringName = &"") -> Dictionary:
+	var target := current_locale if locale == &"" else locale
+	add_locale(target)
+	var locale_text := String(target)
+	var added := 0
+	for key_text in missing_keys.get(locale_text, []):
+		var key := StringName(str(key_text))
+		if not catalogs[target].has(key):
+			catalogs[target][key] = String(key)
+			added += 1
+	return {"ok": true, "locale": locale_text, "added": added}
+
+
+func coverage_report(keys: Array, locales: Array = []) -> Dictionary:
+	var unique_keys := _unique_sorted_keys(keys)
+	var target_locales := locales.duplicate()
+	if target_locales.is_empty():
+		target_locales = get_available_locales()
+	var by_locale: Dictionary = {}
+	for locale_value in target_locales:
+		var locale := StringName(str(locale_value))
+		add_locale(locale)
+		var translated := 0
+		var missing: Array = []
+		for key_text in unique_keys:
+			var key := StringName(str(key_text))
+			if catalogs[locale].has(key) and not str(catalogs[locale][key]).strip_edges().is_empty():
+				translated += 1
+			else:
+				missing.append(String(key))
+		by_locale[String(locale)] = {
+			"translated": translated,
+			"total": unique_keys.size(),
+			"missing": missing,
+			"percent": 100.0 if unique_keys.is_empty() else (float(translated) / float(unique_keys.size())) * 100.0,
+		}
+	return {"keys": unique_keys, "locales": by_locale}
+
+
 func get_state() -> Dictionary:
 	return {
 		"default_locale": String(default_locale),
@@ -250,6 +303,16 @@ func _parse_csv(csv_text: String) -> Array:
 
 func _is_csv_header(row: Array) -> bool:
 	return row.size() >= 2 and str(row[0]).strip_edges().to_lower() == "key" and str(row[1]).strip_edges().to_lower() == "text"
+
+
+func _unique_sorted_keys(keys: Array) -> Array:
+	var result: Array = []
+	for key_value in keys:
+		var key := str(key_value).strip_edges()
+		if not key.is_empty() and not result.has(key):
+			result.append(key)
+	result.sort()
+	return result
 
 
 func _as_bool(value: Variant) -> bool:

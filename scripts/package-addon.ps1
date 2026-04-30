@@ -22,6 +22,7 @@ $paths = @(
     "docs",
     "examples",
     "scripts",
+    "tests",
     "README.md",
     "LICENSE",
     "project.godot"
