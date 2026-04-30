@@ -9,7 +9,10 @@ const TimelineModel := preload("res://addons/novella/editor/timeline_model.gd")
 const TimelineEditorModel := preload("res://addons/novella/editor/timeline_editor_model.gd")
 const ScriptDiagnostics := preload("res://addons/novella/editor/script_diagnostics.gd")
 const AssetIndex := preload("res://addons/novella/editor/asset_index.gd")
+const ScriptLanguageService := preload("res://addons/novella/editor/script_language_service.gd")
+const FlowGraphBuilder := preload("res://addons/novella/debug/flow_graph_builder.gd")
 const LocalizationManager := preload("res://addons/novella/meta/localization_manager.gd")
+const OnDemandAssetLoader := preload("res://addons/novella/performance/on_demand_asset_loader.gd")
 
 var parser := Parser.new()
 var command_parser := CommandParser.new()
@@ -18,7 +21,10 @@ var timeline_model := TimelineModel.new()
 var timeline_editor := TimelineEditorModel.new()
 var diagnostics := ScriptDiagnostics.new()
 var asset_index := AssetIndex.new()
+var language_service := ScriptLanguageService.new()
+var flow_graph_builder := FlowGraphBuilder.new()
 var localization := LocalizationManager.new()
+var asset_loader := OnDemandAssetLoader.new()
 var current_asset_index: Dictionary = {}
 
 func build_project_index(paths: Array) -> Dictionary:
@@ -120,6 +126,24 @@ func validate_asset_references(source: String, asset_paths: Array, file_path: St
 	build_project_index(asset_paths)
 	var ast = parser.parse(source, file_path)
 	return _asset_report_for_events(_events_from_ast(ast))
+
+
+func language_report(source: String, file_path: String = "", known_commands: Array = [], asset_paths: Array = []) -> Dictionary:
+	if not asset_paths.is_empty():
+		build_project_index(asset_paths)
+	return language_service.analyze(source, file_path, known_commands, current_asset_index)
+
+
+func build_flow_graph(source: String, file_path: String = "") -> Dictionary:
+	var ast = parser.parse(source, file_path)
+	return flow_graph_builder.build(ast)
+
+
+func build_asset_load_plan(source: String, asset_paths: Array, file_path: String = "", options: Dictionary = {}) -> Dictionary:
+	build_project_index(asset_paths)
+	var ast = parser.parse(source, file_path)
+	var events := _events_from_ast(ast)
+	return asset_loader.build_plan(events, current_asset_index, options)
 
 
 func _events_from_ast(ast: Variant) -> Array:

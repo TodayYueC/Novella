@@ -37,13 +37,17 @@ const OutlineBuilder := preload("res://addons/novella/editor/script_outline_buil
 const TimelineModel := preload("res://addons/novella/editor/timeline_model.gd")
 const TimelineEditorModel := preload("res://addons/novella/editor/timeline_editor_model.gd")
 const ProductionWorkflow := preload("res://addons/novella/editor/production_workflow.gd")
+const ScriptLanguageService := preload("res://addons/novella/editor/script_language_service.gd")
 const TimelineEditorPanelScene := preload("res://addons/novella/editor/ui/timeline_editor_panel.tscn")
 const ScriptDiagnostics := preload("res://addons/novella/editor/script_diagnostics.gd")
 const TemplateLibrary := preload("res://addons/novella/editor/script_template_library.gd")
 const AssetIndex := preload("res://addons/novella/editor/asset_index.gd")
+const DeveloperTools := preload("res://addons/novella/debug/developer_tools.gd")
+const FlowGraphBuilder := preload("res://addons/novella/debug/flow_graph_builder.gd")
 const LocalizationManager := preload("res://addons/novella/meta/localization_manager.gd")
 const GalleryManager := preload("res://addons/novella/meta/gallery_manager.gd")
 const AchievementManager := preload("res://addons/novella/meta/achievement_manager.gd")
+const OnDemandAssetLoader := preload("res://addons/novella/performance/on_demand_asset_loader.gd")
 const ScriptMigration := preload("res://addons/novella/script/script_migration.gd")
 const CompatibilityMatrix := preload("res://addons/novella/release/compatibility_matrix.gd")
 const ReleaseManifest := preload("res://addons/novella/release/release_manifest.gd")
@@ -54,7 +58,7 @@ var failures: Array[String] = []
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v1.2.0 tests passed.")
+		print("Novella v1.3.0 tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -85,6 +89,7 @@ func _run_all() -> void:
 	_test_v1_0_release_hardening()
 	_test_v1_0_release_tools()
 	_test_v1_2_production_workflow()
+	_test_v1_3_developer_tooling()
 	_test_vm_milestone_script()
 
 
@@ -869,6 +874,66 @@ func _test_v1_2_production_workflow() -> void:
 	_assert(roundtrip["ok"], "ProductionWorkflow should round-trip editable scripts without parse errors: %s" % [roundtrip])
 
 
+func _test_v1_3_developer_tooling() -> void:
+	var source := _v1_3_tooling_script()
+	var asset_paths := [
+		"res://art/backgrounds/school_day.png",
+		"res://art/characters/ryone/uniform_happy.png",
+		"res://audio/bgm/main_theme.ogg",
+	]
+	var indexer := AssetIndex.new()
+	var index := indexer.build(asset_paths)
+	var language := ScriptLanguageService.new()
+	var language_report := language.analyze(source, "tooling.nvs", _known_commands_for_tests(), index)
+	_assert(language_report["ok"], "ScriptLanguageService should analyze valid scripts.")
+	_assert(language_report["syntax_tokens"].any(func(token): return token.get("kind", "") == "command" and token.get("text", "") == "bg"), "ScriptLanguageService should emit command syntax tokens.")
+	_assert(language_report["symbols"]["labels"].any(func(symbol): return symbol.get("name", "") == "stay_path"), "ScriptLanguageService should collect label symbols.")
+	_assert(language_report["symbols"]["variables"].any(func(symbol): return symbol.get("name", "") == "affinity"), "ScriptLanguageService should collect variable symbols.")
+	_assert(language.complete_at("@", 1, 2, {"commands": _known_commands_for_tests()}).any(func(item): return item.get("insert_text", "") == "@var"), "ScriptLanguageService should complete commands.")
+	_assert(language.complete_at(source, 13, 18, {"file_path": "tooling.nvs"}).any(func(item): return item.get("insert_text", "") == "stay_path"), "ScriptLanguageService should complete jump targets.")
+	_assert(language.definition_at(source, 13, 20, "tooling.nvs").get("line", 0) == 17, "ScriptLanguageService should jump to label definitions.")
+	_assert(language.find_references(source, "affinity").size() >= 2, "ScriptLanguageService should find variable references.")
+
+	var parser := Parser.new()
+	var ast = parser.parse(source, "tooling.nvs")
+	var graph_builder := FlowGraphBuilder.new()
+	var graph := graph_builder.build(ast)
+	_assert(graph["stats"]["by_type"]["label"] == 3, "FlowGraphBuilder should create label route nodes.")
+	_assert(graph["edges"].any(func(edge): return edge.get("to", "") == "label:stay_path"), "FlowGraphBuilder should connect choices to jump targets.")
+	_assert(graph_builder.reachable_labels(graph).has("label:leave_path"), "FlowGraphBuilder should calculate reachable route labels.")
+	_assert(graph_builder.unlock_node(graph, "label:stay_path")["nodes"].any(func(node): return node.get("id", "") == "label:stay_path" and node.get("unlocked", false)), "FlowGraphBuilder should mark route nodes as unlocked.")
+
+	var workflow := ProductionWorkflow.new()
+	var production := workflow.analyze_script(source, "tooling.nvs", _known_commands_for_tests(), asset_paths)
+	var plan := workflow.build_asset_load_plan(source, asset_paths, "tooling.nvs", {"dry_run": true})
+	_assert(plan["ok"], "OnDemandAssetLoader should build valid asset load plans: %s" % [plan])
+	_assert(plan["summary"]["total"] == 3, "OnDemandAssetLoader should queue referenced background, character, and audio assets.")
+	var loader := OnDemandAssetLoader.new()
+	var load_result := loader.load_next(plan, {"dry_run": true})
+	_assert(load_result["ok"] and loader.get_loaded_assets().size() == 1, "OnDemandAssetLoader should dry-run load queued assets.")
+	_assert(loader.release_unused([])["released"].size() == 1, "OnDemandAssetLoader should release unused assets.")
+	_assert(workflow.language_report(source, "tooling.nvs", _known_commands_for_tests(), asset_paths)["symbols"]["labels"].size() == 3, "ProductionWorkflow should expose language service reports.")
+	_assert(workflow.build_flow_graph(source, "tooling.nvs")["stats"]["nodes"] >= 3, "ProductionWorkflow should expose flow graph reports.")
+	_assert(production["assets"]["missing_assets"].is_empty(), "ProductionWorkflow should still validate assets in v1.3.0.")
+
+	var tools := DeveloperTools.new()
+	var variables := VariableManager.new()
+	variables.declare_variable(&"affinity", 1)
+	_assert(tools.variable_watch(variables)["game"]["affinity"] == 1, "DeveloperTools should watch runtime variables.")
+	_assert(tools.set_variable(variables, &"affinity", 5)["value"] == 5, "DeveloperTools should edit runtime variables.")
+	var registry := CommandRegistry.new()
+	var basic := BasicCommands.new()
+	basic.register_all(registry, variables)
+	_assert(tools.execute_console("@set affinity += 2", registry, {"variables": variables})["ok"], "DeveloperTools should execute console commands.")
+	_assert(variables.get_variable(&"affinity") == 7, "DeveloperTools console should mutate variables through command registry.")
+	var vm := VM.new()
+	vm.pause_on_text = true
+	vm.load_script(parser.parse("label start:\n    Ryone: Trace me.", "trace.nvs"))
+	vm.run()
+	_assert(tools.trace_vm(vm)["waiting_for_advance"], "DeveloperTools should trace VM wait state.")
+	_assert(tools.performance_snapshot(null)["ok"], "DeveloperTools should report performance snapshots.")
+
+
 func _test_vm_milestone_script() -> void:
 	var parser := Parser.new()
 	var ast = parser.parse(_sample_script(), "v0_2_demo.nvs")
@@ -977,6 +1042,31 @@ label start:
         "$choice.stay" if affinity > 0:
             @set affinity += 1
             Ryone: $choice.stay"""
+
+
+func _v1_3_tooling_script() -> String:
+	return """@var affinity = 1
+@var path = ""
+
+label start:
+    @translation en line.hello text:"Hello."
+    @bg school_day transition:dissolve
+    @char ryone uniform happy pos:left
+    @play_music main_theme fade:1.0
+    Ryone: $line.hello
+    menu:
+        "Stay" if affinity > 0:
+            @set path = "stay"
+            jump stay_path
+        "Leave":
+            jump leave_path
+
+label stay_path:
+    Ryone: Stayed.
+    return
+
+label leave_path:
+    Ryone: Left."""
 
 
 func _sample_script() -> String:
@@ -1159,8 +1249,12 @@ func _release_file_list_for_tests() -> Array:
 		"addons/novella/novella.gd",
 		"addons/novella/novella_editor_plugin.gd",
 		"addons/novella/core/constants.gd",
+		"addons/novella/debug/developer_tools.gd",
+		"addons/novella/debug/flow_graph_builder.gd",
 		"addons/novella/editor/production_workflow.gd",
+		"addons/novella/editor/script_language_service.gd",
 		"addons/novella/editor/timeline_editor_model.gd",
+		"addons/novella/performance/on_demand_asset_loader.gd",
 		"addons/novella/editor/ui/timeline_editor_panel.tscn",
 		"addons/novella/editor/ui/timeline_editor_panel.gd",
 		"addons/novella/release/compatibility_matrix.gd",
@@ -1199,6 +1293,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/v1.0.1.md",
 		"docs/v1.1.0.md",
 		"docs/v1.2.0.md",
+		"docs/v1.3.0.md",
 		"examples/scripts/v1_0_showcase.nvs",
 		".github/workflows/release-check.yml",
 		"scripts/test-godot.ps1",
@@ -1214,7 +1309,7 @@ func _plugin_cfg_text_for_tests() -> String:
 name="Novella"
 description="Commercial-grade visual novel / GalGame framework for Godot 4."
 author="TodayYueC"
-version="1.2.0"
+version="1.3.0"
 script="novella_editor_plugin.gd"
 """
 
