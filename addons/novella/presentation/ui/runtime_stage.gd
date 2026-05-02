@@ -18,6 +18,7 @@ var adv_view: Control
 var nvl_view: Control
 var status_label: Label
 var hidden_ui: bool = false
+var active_printer_mode: StringName = &"adv"
 
 func _ready() -> void:
 	_build_ui()
@@ -64,6 +65,7 @@ func bind_managers(managers: Dictionary) -> void:
 func apply_line(payload: Dictionary) -> void:
 	_build_ui()
 	var mode := StringName(str(payload.get("mode", "adv")))
+	active_printer_mode = mode
 	if mode == &"nvl":
 		adv_view.visible = false
 		nvl_view.visible = not hidden_ui
@@ -133,8 +135,8 @@ func apply_camera(state: Dictionary) -> void:
 
 func set_ui_hidden(hidden: bool) -> void:
 	hidden_ui = hidden
-	adv_view.visible = not hidden and adv_view.visible
-	nvl_view.visible = not hidden and nvl_view.visible
+	adv_view.visible = not hidden and active_printer_mode == &"adv"
+	nvl_view.visible = not hidden and active_printer_mode == &"nvl"
 	ui_hidden_changed.emit(hidden_ui)
 
 

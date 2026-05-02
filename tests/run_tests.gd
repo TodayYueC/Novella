@@ -38,12 +38,16 @@ const TimelineModel := preload("res://addons/novella/editor/timeline_model.gd")
 const TimelineEditorModel := preload("res://addons/novella/editor/timeline_editor_model.gd")
 const ProductionWorkflow := preload("res://addons/novella/editor/production_workflow.gd")
 const ScriptLanguageService := preload("res://addons/novella/editor/script_language_service.gd")
+const EditorPreviewSession := preload("res://addons/novella/editor/editor_preview_session.gd")
+const ResourceWorkbench := preload("res://addons/novella/editor/resource_workbench.gd")
 const TimelineEditorPanelScene := preload("res://addons/novella/editor/ui/timeline_editor_panel.tscn")
 const ScriptDiagnostics := preload("res://addons/novella/editor/script_diagnostics.gd")
 const TemplateLibrary := preload("res://addons/novella/editor/script_template_library.gd")
 const AssetIndex := preload("res://addons/novella/editor/asset_index.gd")
 const DeveloperTools := preload("res://addons/novella/debug/developer_tools.gd")
 const FlowGraphBuilder := preload("res://addons/novella/debug/flow_graph_builder.gd")
+const UISkinResource := preload("res://addons/novella/ui/ui_skin_resource.gd")
+const UIFeedbackManager := preload("res://addons/novella/ui/ui_feedback_manager.gd")
 const LocalizationManager := preload("res://addons/novella/meta/localization_manager.gd")
 const GalleryManager := preload("res://addons/novella/meta/gallery_manager.gd")
 const AchievementManager := preload("res://addons/novella/meta/achievement_manager.gd")
@@ -58,7 +62,7 @@ var failures: Array[String] = []
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v1.3.0 tests passed.")
+		print("Novella v1.4.0 tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -90,6 +94,7 @@ func _run_all() -> void:
 	_test_v1_0_release_tools()
 	_test_v1_2_production_workflow()
 	_test_v1_3_developer_tooling()
+	_test_v1_4_editor_assets_ui()
 	_test_vm_milestone_script()
 
 
@@ -220,6 +225,10 @@ func _test_runtime_stage_view() -> void:
 	_assert(stage.get_node("PrinterLayer/AdvPrinter/NameLabel").text == "Ryone", "RuntimeStage should render ADV dialogue.")
 	_assert(stage.get_node("EffectLayer/EffectLabel").text.contains("flash"), "RuntimeStage should render effect labels.")
 	_assert(stage.get_node("StatusLabel").text.contains("Camera"), "RuntimeStage should render camera state.")
+	stage.set_ui_hidden(true)
+	_assert(not stage.get_node("PrinterLayer/AdvPrinter").visible, "RuntimeStage should hide ADV dialogue UI.")
+	stage.set_ui_hidden(false)
+	_assert(stage.get_node("PrinterLayer/AdvPrinter").visible, "RuntimeStage should restore the active ADV dialogue UI.")
 	stage.clear()
 	_assert(stage.get_node("CharacterLayer").get_child_count() == 0, "RuntimeStage should clear characters.")
 	stage.free()
@@ -934,6 +943,82 @@ func _test_v1_3_developer_tooling() -> void:
 	_assert(tools.performance_snapshot(null)["ok"], "DeveloperTools should report performance snapshots.")
 
 
+func _test_v1_4_editor_assets_ui() -> void:
+	var source := _v1_4_editor_assets_ui_script()
+	var asset_paths := [
+		"res://art/backgrounds/school_day.png",
+		"res://art/characters/ryone/uniform_happy.png",
+		"res://art/characters/ryone/side/default.png",
+		"res://audio/bgm/main_theme.ogg",
+	]
+	var session := EditorPreviewSession.new()
+	var started := session.start(source, "v1_4_preview.nvs")
+	_assert(started["ok"], "EditorPreviewSession should start a valid preview: %s" % [started])
+	_assert(started["trace"]["waiting_for_advance"], "EditorPreviewSession should pause on the first dialogue line.")
+	_assert(int(started["current_line"]) > 0, "EditorPreviewSession should expose the current source line.")
+	var advanced := session.advance()
+	_assert(advanced["trace"]["waiting_for_choice"], "EditorPreviewSession should advance into a pending menu.")
+	_assert(advanced["pending_choice"]["choices"].size() == 2, "EditorPreviewSession should expose pending choices.")
+	var chosen := session.choose(1)
+	_assert(chosen["variables"]["game"]["path"] == "right", "EditorPreviewSession should route selected choices into VM variables.")
+	_assert(chosen["trace"]["waiting_for_advance"], "EditorPreviewSession should pause on the selected branch dialogue.")
+	var jumped := session.jump_to_label(&"left_path")
+	_assert(jumped["transcript"].any(func(entry): return str(entry.get("text", "")).contains("Left path.")), "EditorPreviewSession should jump to labels during preview.")
+
+	var workbench := ResourceWorkbench.new()
+	var catalog := workbench.build_asset_catalog(asset_paths)
+	_assert(catalog["summary"]["characters"] == 2, "ResourceWorkbench should categorize character assets.")
+	_assert(catalog["summary"]["backgrounds"] == 1, "ResourceWorkbench should categorize background assets.")
+	_assert(catalog["cards"].any(func(card): return card.get("id", "") == "uniform_happy"), "ResourceWorkbench should build asset cards.")
+	var generated := workbench.auto_character_from_assets(&"ryone", asset_paths)
+	_assert(generated["layers"] == 1 and generated["side_portraits"] == 1, "ResourceWorkbench should assemble character resources from assets.")
+	workbench.configure_text_style(&"ryone", {"name_color": "#ffcc66"})
+	workbench.configure_voice(&"ryone", "res://audio/voice/ryone")
+	var bg := workbench.create_background(&"school_day", "res://art/backgrounds/school_day.png", {"default_transition": "dissolve"})
+	_assert(bg["source_path"].contains("school_day"), "ResourceWorkbench should create background resources.")
+	var preview := workbench.preview_character(&"ryone", ["uniform_happy"])
+	_assert(preview["ok"] and preview["layers"].size() == 1, "ResourceWorkbench should preview selected character layers.")
+	_assert(preview["side_portrait"].contains("default.png"), "ResourceWorkbench should expose side portrait previews.")
+	_assert(workbench.validate_resources()["ok"], "ResourceWorkbench should validate complete structural resources.")
+
+	var quick_menu := QuickMenuManager.new()
+	_assert(quick_menu.move_action(&"config", 0)["ok"], "QuickMenuManager should move actions.")
+	_assert(quick_menu.get_action_order()[0] == "config", "QuickMenuManager should expose action order.")
+	quick_menu.set_action_visible(&"gallery", false)
+	_assert(not quick_menu.get_visible_actions().any(func(action): return action.get("id", &"") == &"gallery"), "QuickMenuManager should hide individual actions.")
+	quick_menu.configure_action(&"title", {"confirm_message": "Return to title?"})
+	var confirm_result := quick_menu.dispatch_action(&"title")
+	_assert(confirm_result.get("confirmation_required", false), "QuickMenuManager should require confirmation for sensitive actions.")
+	_assert(quick_menu.dispatch_action(&"title", {"confirmed": true})["ok"], "QuickMenuManager should dispatch confirmed actions.")
+
+	var timeline := TimelineEditorModel.new()
+	var workflow := ProductionWorkflow.new()
+	var timeline_session := workflow.create_timeline_session(source, "v1_4_preview.nvs")
+	timeline.load_events(timeline_session["events"])
+	var dialogue_matches := timeline.filter_events({"type": "dialogue"})
+	_assert(not dialogue_matches.is_empty(), "TimelineEditorModel should expose dialogue events for production editing.")
+	_assert(timeline.copy_events([dialogue_matches[0]["path"][0]])["count"] == 1, "TimelineEditorModel should copy selected events.")
+	_assert(timeline.paste_events(1)["count"] == 1, "TimelineEditorModel should paste selected events.")
+	_assert(timeline.set_event_collapsed(0, true)["event"]["collapsed"], "TimelineEditorModel should store collapse state.")
+	_assert(timeline.event_style({"type": "dialogue", "speaker": "Ryone", "text": "Styled."})["color"] == "#3b82f6", "TimelineEditorModel should provide event style metadata.")
+
+	var skin := UISkinResource.new()
+	_assert(skin.style_for(&"quick_menu").has("button_color"), "UISkinResource should expose role styles.")
+	_assert(skin.merge_style(&"quick_menu", {"button_color": "#000000"})["button_color"] == "#000000", "UISkinResource should merge role style patches.")
+	var feedback := UIFeedbackManager.new()
+	var request := feedback.request_confirmation(&"load", "Load save?")
+	_assert(request["confirmation_required"], "UIFeedbackManager should create confirmation requests.")
+	_assert(feedback.resolve_confirmation(request["confirmation_id"], true)["accepted"], "UIFeedbackManager should resolve confirmations.")
+	feedback.push_toast("Saved", &"success", 0.1)
+	_assert(feedback.consume_toasts(0.2).is_empty(), "UIFeedbackManager should expire toast messages.")
+	_assert(feedback.toggle_dialogue_hidden()["hidden"], "UIFeedbackManager should toggle hide-dialogue state.")
+
+	var production_preview = workflow.create_preview_session(source, "v1_4_preview.nvs")
+	_assert(production_preview.preview_state()["trace"]["waiting_for_advance"], "ProductionWorkflow should create started preview sessions.")
+	_assert(workflow.resource_report(asset_paths)["catalog"]["summary"]["total"] == 4, "ProductionWorkflow should expose resource workbench reports.")
+	_assert(workflow.ui_production_defaults()["styles"]["styles"].has("quick_menu"), "ProductionWorkflow should expose UI production defaults.")
+
+
 func _test_vm_milestone_script() -> void:
 	var parser := Parser.new()
 	var ast = parser.parse(_sample_script(), "v0_2_demo.nvs")
@@ -1067,6 +1152,29 @@ label stay_path:
 
 label leave_path:
     Ryone: Left."""
+
+
+func _v1_4_editor_assets_ui_script() -> String:
+	return """@var path = ""
+
+label start:
+    @bg school_day transition:dissolve
+    @char ryone uniform_happy pos:left
+    Ryone: Pick one.
+    menu:
+        "Left":
+            @set path = "left"
+            jump left_path
+        "Right":
+            @set path = "right"
+            jump right_path
+
+label left_path:
+    Ryone: Left path.
+    return
+
+label right_path:
+    Ryone: Right path."""
 
 
 func _sample_script() -> String:
@@ -1251,10 +1359,14 @@ func _release_file_list_for_tests() -> Array:
 		"addons/novella/core/constants.gd",
 		"addons/novella/debug/developer_tools.gd",
 		"addons/novella/debug/flow_graph_builder.gd",
+		"addons/novella/editor/editor_preview_session.gd",
 		"addons/novella/editor/production_workflow.gd",
+		"addons/novella/editor/resource_workbench.gd",
 		"addons/novella/editor/script_language_service.gd",
 		"addons/novella/editor/timeline_editor_model.gd",
 		"addons/novella/performance/on_demand_asset_loader.gd",
+		"addons/novella/ui/ui_feedback_manager.gd",
+		"addons/novella/ui/ui_skin_resource.gd",
 		"addons/novella/editor/ui/timeline_editor_panel.tscn",
 		"addons/novella/editor/ui/timeline_editor_panel.gd",
 		"addons/novella/release/compatibility_matrix.gd",
@@ -1294,6 +1406,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/v1.1.0.md",
 		"docs/v1.2.0.md",
 		"docs/v1.3.0.md",
+		"docs/v1.4.0.md",
 		"examples/scripts/v1_0_showcase.nvs",
 		".github/workflows/release-check.yml",
 		"scripts/test-godot.ps1",
@@ -1309,7 +1422,7 @@ func _plugin_cfg_text_for_tests() -> String:
 name="Novella"
 description="Commercial-grade visual novel / GalGame framework for Godot 4."
 author="TodayYueC"
-version="1.3.0"
+version="1.4.0"
 script="novella_editor_plugin.gd"
 """
 

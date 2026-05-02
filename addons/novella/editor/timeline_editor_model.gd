@@ -8,6 +8,7 @@ var events: Array = []
 var undo_stack: Array = []
 var redo_stack: Array = []
 var max_history: int = 64
+var clipboard: Array = []
 
 func load_events(source_events: Array) -> void:
 	_push_history()
@@ -86,6 +87,64 @@ func delete_event(index: int) -> Dictionary:
 	redo_stack.clear()
 	changed.emit(events.duplicate(true))
 	return {"ok": true, "removed": removed.duplicate(true)}
+
+
+func copy_events(indices: Array) -> Dictionary:
+	clipboard.clear()
+	for index_value in indices:
+		var index := int(index_value)
+		if index >= 0 and index < events.size():
+			clipboard.append(events[index].duplicate(true))
+	return {"ok": true, "count": clipboard.size(), "clipboard": clipboard.duplicate(true)}
+
+
+func paste_events(index: int = -1) -> Dictionary:
+	if clipboard.is_empty():
+		return {"ok": false, "empty": true}
+	_push_history()
+	var target := events.size() if index < 0 else clampi(index, 0, events.size())
+	for offset in range(clipboard.size()):
+		var event: Dictionary = clipboard[offset].duplicate(true)
+		event["line"] = int(event.get("line", 0)) + offset
+		events.insert(target + offset, event)
+	_normalize_orders()
+	redo_stack.clear()
+	changed.emit(events.duplicate(true))
+	return {"ok": true, "index": target, "count": clipboard.size(), "events": events.duplicate(true)}
+
+
+func set_event_collapsed(index: int, collapsed: bool) -> Dictionary:
+	if index < 0 or index >= events.size():
+		return {"ok": false, "error": "Event index out of range."}
+	_push_history()
+	events[index]["collapsed"] = collapsed
+	redo_stack.clear()
+	changed.emit(events.duplicate(true))
+	return {"ok": true, "event": events[index].duplicate(true)}
+
+
+func event_style(event: Dictionary) -> Dictionary:
+	var event_type := str(event.get("type", ""))
+	var palette := {
+		"dialogue": "#3b82f6",
+		"narration": "#64748b",
+		"command": "#22c55e",
+		"background": "#14b8a6",
+		"character": "#ec4899",
+		"audio": "#f59e0b",
+		"menu": "#f97316",
+		"choice": "#fb923c",
+		"if": "#a855f7",
+		"while": "#8b5cf6",
+		"flow": "#ef4444",
+		"label": "#94a3b8",
+	}
+	return {
+		"type": event_type,
+		"color": palette.get(event_type, "#64748b"),
+		"collapsed": bool(event.get("collapsed", false)),
+		"title": _event_to_script(event),
+	}
 
 
 func undo() -> Dictionary:

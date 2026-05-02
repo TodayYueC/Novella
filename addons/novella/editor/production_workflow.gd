@@ -10,9 +10,13 @@ const TimelineEditorModel := preload("res://addons/novella/editor/timeline_edito
 const ScriptDiagnostics := preload("res://addons/novella/editor/script_diagnostics.gd")
 const AssetIndex := preload("res://addons/novella/editor/asset_index.gd")
 const ScriptLanguageService := preload("res://addons/novella/editor/script_language_service.gd")
+const EditorPreviewSession := preload("res://addons/novella/editor/editor_preview_session.gd")
+const ResourceWorkbench := preload("res://addons/novella/editor/resource_workbench.gd")
 const FlowGraphBuilder := preload("res://addons/novella/debug/flow_graph_builder.gd")
 const LocalizationManager := preload("res://addons/novella/meta/localization_manager.gd")
 const OnDemandAssetLoader := preload("res://addons/novella/performance/on_demand_asset_loader.gd")
+const UISkinResource := preload("res://addons/novella/ui/ui_skin_resource.gd")
+const UIFeedbackManager := preload("res://addons/novella/ui/ui_feedback_manager.gd")
 
 var parser := Parser.new()
 var command_parser := CommandParser.new()
@@ -22,14 +26,43 @@ var timeline_editor := TimelineEditorModel.new()
 var diagnostics := ScriptDiagnostics.new()
 var asset_index := AssetIndex.new()
 var language_service := ScriptLanguageService.new()
+var resource_workbench := ResourceWorkbench.new()
 var flow_graph_builder := FlowGraphBuilder.new()
 var localization := LocalizationManager.new()
 var asset_loader := OnDemandAssetLoader.new()
+var ui_feedback := UIFeedbackManager.new()
 var current_asset_index: Dictionary = {}
 
 func build_project_index(paths: Array) -> Dictionary:
 	current_asset_index = asset_index.build(paths)
 	return current_asset_index.duplicate(true)
+
+
+func create_preview_session(source: String = "", file_path: String = "", max_steps: int = 10000) -> Variant:
+	var session := EditorPreviewSession.new()
+	if not source.is_empty():
+		session.start(source, file_path, max_steps)
+	return session
+
+
+func resource_report(asset_paths: Array) -> Dictionary:
+	var catalog := resource_workbench.build_asset_catalog(asset_paths)
+	return {
+		"ok": true,
+		"catalog": catalog,
+		"validation": resource_workbench.validate_resources(),
+		"state": resource_workbench.get_state(),
+	}
+
+
+func ui_production_defaults() -> Dictionary:
+	var skin := UISkinResource.new()
+	return {
+		"ok": true,
+		"skin": skin,
+		"styles": skin.to_dict(),
+		"feedback": ui_feedback.get_state(),
+	}
 
 
 func analyze_script(source: String, file_path: String = "", known_commands: Array = [], asset_paths: Array = []) -> Dictionary:

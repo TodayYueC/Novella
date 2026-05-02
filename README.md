@@ -1,6 +1,6 @@
 # Novella
 
-Novella is a Godot 4 visual novel / GalGame plugin. The current stable release is `1.3.0`. Godot 4.6 is the primary development and validation runtime, and Godot 4.3+ is the compatibility target for the Godot 4 line.
+Novella is a Godot 4 visual novel / GalGame plugin. The current stable release is `1.4.0`. Godot 4.6 is the primary development and validation runtime, and Godot 4.3+ is the compatibility target for the Godot 4 line.
 
 Novella is implemented in GDScript so projects can install, inspect, extend, and package it like a normal Godot addon. Godot also supports C++ / GDExtension plugins, but Novella keeps the 1.0 runtime script-first for portability, editor integration, and easier community contribution. Native modules can be added later behind the same public APIs if profiling shows a real bottleneck.
 
@@ -326,7 +326,7 @@ After enabling the plugin, Godot shows a `Novella` editor dock. The current dock
 - Index likely character, background, audio, script, and UI assets.
 - Open the visual timeline panel foundation.
 
-The visual editor in 1.3 is still a foundation layer, but it now supports production workflow helpers: timeline search/replace/filtering, nested menu/branch export, asset reference validation, localization template export/import, localized script preview, language-service reports, route flow graphs, and on-demand asset load plans.
+The visual editor in 1.4 is still model-first, but it now supports production workflow helpers: live preview sessions, timeline copy/paste/collapse styling, nested menu/branch export, asset reference validation, resource workbench cards, UI skin defaults, confirmation requests, toast state, localization template export/import, localized script preview, language-service reports, route flow graphs, and on-demand asset load plans.
 
 ```gdscript
 var workflow := NovellaProductionWorkflow.new()
@@ -336,6 +336,10 @@ var preview := workflow.preview_localized_source(source, &"zh", "chapter_01.nvs"
 var language := workflow.language_report(source, "chapter_01.nvs", known_commands, asset_paths)
 var route_graph := workflow.build_flow_graph(source, "chapter_01.nvs")
 var load_plan := workflow.build_asset_load_plan(source, asset_paths, "chapter_01.nvs")
+var preview_session := workflow.create_preview_session(source, "chapter_01.nvs")
+var preview_state := preview_session.preview_state()
+var resource_report := workflow.resource_report(asset_paths)
+var ui_defaults := workflow.ui_production_defaults()
 ```
 
 Developer tooling primitives are available for editor panels and debug overlays:
@@ -421,7 +425,7 @@ Commit source code, addon files, examples, tests, public docs, and small placeho
 
 ### 16. Release Status
 
-Implemented in `1.3.0`:
+Implemented in `1.4.0`:
 
 - v0.1 runtime core: lexer, parser, AST, VM, variables, command registry, and basic flow commands.
 - v0.2 presentation core: typewriter timing, rich text conversion, ADV/NVL printer state, character/background/effect/audio/camera managers, and presentation commands.
@@ -433,6 +437,7 @@ Implemented in `1.3.0`:
 - v1.1.0 playable runtime: VM text advance mode, `RuntimePlayer` scene, choice buttons, quick menu dispatch, and mouse/keyboard advance input.
 - v1.2.0 production workflow: `NovellaProductionWorkflow`, richer asset indexing, reference validation, timeline search/replace/filtering, nested timeline export, localization templates, coverage reports, and localized script preview.
 - v1.3.0 full-PRD tooling baseline: script language service, developer tools, command console, VM tracing, route flow graph builder, route unlock overlays, performance snapshots, and on-demand asset load plans.
+- v1.4.0 editor/assets/UI production tools: editor preview sessions, production timeline copy/paste/collapse styling, resource workbench, character/background resource assembly, UI skin resources, quick menu ordering/confirmation metadata, toast state, and hide-dialogue behavior.
 
 Remaining verification:
 
@@ -802,7 +807,7 @@ print(status["message"])
 
 ### 16. 发布状态
 
-`1.3.0` 已包含：
+`1.4.0` 已包含：
 
 - v0.1 运行时核心：lexer、parser、AST、VM、变量、命令注册和基础流程命令。
 - v0.2 表现层核心：打字机、富文本、ADV/NVL printer 状态、角色/背景/特效/音频/镜头管理器和表现层命令。
@@ -814,6 +819,7 @@ print(status["message"])
 - v1.1.0 可玩运行时：VM 文本等待推进、`RuntimePlayer` 场景、选项按钮、quick menu 派发和鼠标/键盘推进输入。
 - v1.2.0 制作工作流：`NovellaProductionWorkflow`、更完整的资源索引、引用完整性检查、时间线搜索/替换/过滤、嵌套时间线导出、本地化模板、覆盖率统计和本地化预览。
 - v1.3.0 PRD 全量工具基线：脚本语言服务、开发者工具、控制台命令、VM 追踪、路线流程图、路线解锁覆盖、性能快照和按需资源加载计划。
+- v1.4.0 编辑器/资源/UI 生产工具：编辑器预览会话、时间线复制/粘贴/折叠样式、资源工作台、角色/背景资源组装、UI 皮肤资源、快捷菜单排序和确认提示、toast 状态以及隐藏对话框行为。
 
 剩余验证：
 

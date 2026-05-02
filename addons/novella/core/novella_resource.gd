@@ -23,7 +23,7 @@ func from_dict(data: Dictionary) -> void:
 	metadata = data.get("metadata", {}).duplicate(true)
 
 
-func duplicate_resource() -> NovellaResource:
-	var copy := get_script().new()
+func duplicate_resource() -> Resource:
+	var copy: Resource = get_script().new()
 	copy.from_dict(to_dict())
 	return copy
