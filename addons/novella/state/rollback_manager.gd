@@ -42,6 +42,47 @@ func rollback(steps: int = 1) -> Dictionary:
 	if not can_rollback(steps):
 		return {"ok": false, "prevented": rollback_prevented, "available": snapshots.size()}
 	var target_index: int = snapshots.size() - max(1, steps)
+	return _rollback_to_snapshot_index(target_index)
+
+
+func rollback_to_index(target_index: int) -> Dictionary:
+	if rollback_prevented:
+		return {"ok": false, "prevented": true, "available": snapshots.size()}
+	return _rollback_to_snapshot_index(target_index)
+
+
+func rollback_to_line(line: int) -> Dictionary:
+	for index in range(snapshots.size() - 1, -1, -1):
+		var metadata: Dictionary = snapshots[index].get("metadata", {})
+		if int(metadata.get("line", -1)) == line:
+			return rollback_to_index(index)
+	return {"ok": false, "error": "No rollback snapshot for line '%s'." % line}
+
+
+func rollback_to_metadata(key: String, value: Variant) -> Dictionary:
+	for index in range(snapshots.size() - 1, -1, -1):
+		var metadata: Dictionary = snapshots[index].get("metadata", {})
+		if metadata.get(key) == value:
+			return rollback_to_index(index)
+	return {"ok": false, "error": "No rollback snapshot for metadata '%s'." % key}
+
+
+func list_targets() -> Array:
+	var result: Array = []
+	for index in range(snapshots.size()):
+		var snapshot: Dictionary = snapshots[index]
+		result.append({
+			"index": index,
+			"metadata": snapshot.get("metadata", {}).duplicate(true),
+			"fixed": bool(snapshot.get("fixed", false)),
+			"available": index > fixed_index and not rollback_prevented,
+		})
+	return result
+
+
+func _rollback_to_snapshot_index(target_index: int) -> Dictionary:
+	if target_index < 0 or target_index >= snapshots.size() or target_index <= fixed_index:
+		return {"ok": false, "target_index": target_index, "fixed_index": fixed_index, "available": snapshots.size()}
 	var snapshot: Dictionary = snapshots[target_index].duplicate(true)
 	while snapshots.size() > target_index:
 		snapshots.pop_back()

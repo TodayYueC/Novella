@@ -157,6 +157,7 @@ func _bootstrap() -> void:
 	vm.skip_manager = skip_manager
 	vm.auto_manager = auto_manager
 	vm.backlog_manager = backlog_manager
+	vm.audio_manager = audio_manager
 	vm.quick_menu_manager = quick_menu_manager
 	vm.localization_manager = localization_manager
 	vm.gallery_manager = gallery_manager

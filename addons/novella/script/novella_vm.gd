@@ -28,6 +28,7 @@ var backlog_manager: Variant = null
 var skip_manager: Variant = null
 var auto_manager: Variant = null
 var save_manager: Variant = null
+var audio_manager: Variant = null
 var quick_menu_manager: Variant = null
 var localization_manager: Variant = null
 var gallery_manager: Variant = null
@@ -169,6 +170,7 @@ func _execute_node(node) -> Dictionary:
 			var localized_text := _localize_text(node.text)
 			var text := interpolator.interpolate(localized_text, variable_manager)
 			var presentation := _present_dialogue(node.speaker, text)
+			_apply_voice_for_line(presentation, node.speaker, node.line)
 			_mark_line_read(node)
 			if backlog_manager != null and backlog_manager.has_method("add_dialogue"):
 				backlog_manager.add_dialogue(node.speaker, text, node.line, presentation)
@@ -419,6 +421,7 @@ func _context_for(node) -> Dictionary:
 		"skip_manager": skip_manager,
 		"auto_manager": auto_manager,
 		"save_manager": save_manager,
+		"audio_manager": audio_manager,
 		"quick_menu_manager": quick_menu_manager,
 		"localization_manager": localization_manager,
 		"gallery_manager": gallery_manager,
@@ -487,6 +490,17 @@ func _present_narration(text: String) -> Dictionary:
 	if printer_manager != null and printer_manager.has_method("present_narration"):
 		return printer_manager.present_narration(text)
 	return {}
+
+
+func _apply_voice_for_line(presentation: Dictionary, speaker: String, line: int) -> void:
+	if audio_manager == null or not audio_manager.has_method("play_voice_for_line"):
+		return
+	var voice: Dictionary = audio_manager.play_voice_for_line(StringName(speaker), line)
+	if not bool(voice.get("ok", false)):
+		return
+	presentation["voice"] = voice.get("id", "")
+	presentation["voice_id"] = voice.get("id", "")
+	presentation["voice_playback"] = voice.duplicate(true)
 
 
 func _localize_text(text: String) -> String:

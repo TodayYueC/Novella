@@ -15,15 +15,14 @@ The planned split is:
 - Keep editor UI, authoring tools, resources, and service wiring in GDScript.
 - Consider C++ / GDExtension for parser hot paths, bytecode execution, expression evaluation, or large-scale asset processing after the API stabilizes.
 
-## Versioned Roadmap After v1.4.0
+## Versioned Roadmap After v1.5.0
 
-`v1.4.0` completed the editor, asset, and UI production-tools phase. Future iterations must follow this version order. Each phase version is completed as one milestone, then tested, packaged, committed, tagged, pushed, and published as a GitHub Release before moving to the next phase.
+`v1.4.0` completed the editor, asset, and UI production-tools phase. `v1.5.0` completed the presentation, audio, and save-system phase. Future iterations must follow this version order. Each phase version is completed as one milestone, then tested, packaged, committed, tagged, pushed, and published as a GitHub Release before moving to the next phase.
 
 Patch releases such as `v1.4.1` are reserved for urgent regressions only. Planned feature work should not be split into ad-hoc mini versions such as `v1.4.1`, `v1.4.2`, or `v1.4.3`; the next planned feature milestone remains the next phase version.
 
 | Version | Phase | Milestone |
 | --- | --- | --- |
-| `v1.5.0` | Presentation, audio, and save systems completed | Complete rendered character/background presentation, transitions, camera animation, screen effects, shader registration, BGM/SE/Voice playback, automatic voice association, backlog voice replay, save import/export, optional encryption, arbitrary rollback targets, and persistent read-state tracking. |
 | `v1.6.0` | Meta systems, debugging, and performance completed | Complete localization typography and asset overrides, on-demand language packs, line split/merge support, plural-form baseline, gallery/music room/route map/achievement UI, debug panels, command console UI, node inspector, performance panel, visual flow graph, on-demand loading implementation, audio streaming validation, memory/FPS baseline, touch input, and gamepad input. |
 | `v1.7.0` | Documentation, examples, compatibility, and PRD audit | Complete the full example VN project, bilingual API docs, command docs, tutorial refresh, Godot 4.3/4.4/4.5/4.6 compatibility matrix, API compatibility fixes, full PRD audit, remaining gap closure, and targeted test coverage improvements. |
 | `v2.0.0` | Full PRD official release | Final acceptance, release-candidate stabilization, packaging polish, artifact verification, tag, GitHub Release, and public-ready full PRD release. |

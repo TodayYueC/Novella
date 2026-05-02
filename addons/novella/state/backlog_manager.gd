@@ -67,12 +67,23 @@ func clear() -> void:
 	backlog_cleared.emit()
 
 
-func request_voice_replay(entry_id: int) -> Dictionary:
+func attach_voice(entry_id: int, voice_id: StringName) -> Dictionary:
+	for entry in entries:
+		if int(entry.get("id", -1)) == entry_id:
+			entry["voice"] = String(voice_id)
+			return {"ok": true, "entry": entry.duplicate(true)}
+	return {"ok": false, "error": "Backlog entry '%s' was not found." % entry_id}
+
+
+func request_voice_replay(entry_id: int, audio_manager: Variant = null, options: Dictionary = {}) -> Dictionary:
 	for entry in entries:
 		if int(entry.get("id", -1)) == entry_id:
 			var payload: Dictionary = entry.duplicate(true)
 			voice_replay_requested.emit(payload)
-			return {"ok": true, "entry": payload, "voice": payload.get("voice", "")}
+			var result := {"ok": true, "entry": payload, "voice": payload.get("voice", "")}
+			if audio_manager != null and audio_manager.has_method("replay_voice"):
+				result["playback"] = audio_manager.replay_voice(payload, options)
+			return result
 	return {"ok": false, "error": "Backlog entry '%s' was not found." % entry_id}
 
 

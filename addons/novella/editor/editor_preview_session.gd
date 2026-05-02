@@ -146,6 +146,7 @@ func _build_runtime() -> void:
 	vm.skip_manager = managers["skip_manager"]
 	vm.auto_manager = managers["auto_manager"]
 	vm.backlog_manager = managers["backlog_manager"]
+	vm.audio_manager = managers["audio_manager"]
 	vm.quick_menu_manager = managers["quick_menu_manager"]
 	vm.localization_manager = managers["localization_manager"]
 	vm.gallery_manager = managers["gallery_manager"]

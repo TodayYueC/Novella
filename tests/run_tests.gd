@@ -15,6 +15,7 @@ const VM := preload("res://addons/novella/script/novella_vm.gd")
 const RichTextParser := preload("res://addons/novella/presentation/rich_text_parser.gd")
 const TypewriterEffect := preload("res://addons/novella/presentation/typewriter_effect.gd")
 const PrinterManager := preload("res://addons/novella/presentation/printer_manager.gd")
+const SceneRenderer := preload("res://addons/novella/presentation/scene_renderer.gd")
 const RuntimeStageScene := preload("res://addons/novella/presentation/ui/runtime_stage.tscn")
 const RuntimePlayerScene := preload("res://addons/novella/presentation/ui/runtime_player.tscn")
 const CharacterManager := preload("res://addons/novella/presentation/characters/character_manager.gd")
@@ -62,7 +63,7 @@ var failures: Array[String] = []
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v1.4.0 tests passed.")
+		print("Novella v1.5.0 tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -95,6 +96,7 @@ func _run_all() -> void:
 	_test_v1_2_production_workflow()
 	_test_v1_3_developer_tooling()
 	_test_v1_4_editor_assets_ui()
+	_test_v1_5_presentation_audio_save()
 	_test_vm_milestone_script()
 
 
@@ -1019,6 +1021,85 @@ func _test_v1_4_editor_assets_ui() -> void:
 	_assert(workflow.ui_production_defaults()["styles"]["styles"].has("quick_menu"), "ProductionWorkflow should expose UI production defaults.")
 
 
+func _test_v1_5_presentation_audio_save() -> void:
+	var backgrounds := BackgroundManager.new()
+	var characters := CharacterManager.new()
+	var camera := CameraDirector.new()
+	var effects := EffectManager.new()
+	var renderer := SceneRenderer.new()
+	backgrounds.register_background(&"school_day", {"source_path": "res://art/backgrounds/school_day.png"})
+	var bg := backgrounds.show_background(&"school_day", {"transition": "dissolve", "time": 0.75})
+	characters.register_character(&"Ryone", {
+		"layers": [
+			{"group": "sprite", "attribute": "uniform_happy", "texture_path": "res://art/characters/ryone/uniform_happy.png", "order": 0},
+		],
+		"side_portraits": {&"default": "res://art/characters/ryone/side/default.png"},
+	})
+	characters.show_character(&"Ryone", ["uniform_happy"], {"pos": "left", "focused": true})
+	camera.move_camera({"pos": "10,20", "zoom": "1.1", "time": "0.5"})
+	effects.register_shader(&"flash_shader", "res://shaders/flash.gdshader", {"blend": "add"})
+	var effect := effects.trigger_effect(&"flash", "screen", {"shader": "flash_shader", "duration": 0.4, "intensity": 0.8})
+	_assert(effect["shader_pass"]["path"].contains("flash.gdshader"), "EffectManager should attach registered shader passes.")
+	var scene := renderer.build_scene(backgrounds.get_state(), characters.get_state(), camera.get_state(), effects.get_state())
+	_assert(scene["background"]["id"] == "school_day", "SceneRenderer should build background render instructions.")
+	_assert(scene["characters"].size() == 1 and scene["characters"][0]["layers"].size() == 1, "SceneRenderer should build character render instructions.")
+	_assert(scene["effects"][0]["shader"] == "flash", "SceneRenderer should build screen effect passes.")
+	var transition := renderer.transition_plan({}, bg, &"dissolve", 0.75)
+	_assert(transition["steps"].size() == 2 and transition["duration"] == 0.75, "SceneRenderer should build transition plans.")
+	var character_animation := renderer.character_animation(scene["characters"][0], &"move", 0.5, {"position": 0.75, "position_name": "right"})
+	_assert(character_animation["to"]["position_name"] == "right", "SceneRenderer should build character animation plans.")
+	_assert(camera.animate_to({"pos": "40,20", "zoom": "1.3", "time": 0.25})["ok"], "CameraDirector should queue camera animations.")
+	camera.advance(0.25)
+	_assert(camera.get_state()["animation_queue"].is_empty(), "CameraDirector should finish queued camera animations.")
+	_assert(effects.build_effect_timeline().size() == 1, "EffectManager should build effect timelines.")
+	_assert(effects.advance_effects(1.0).is_empty(), "EffectManager should expire completed effects.")
+
+	var audio := AudioManager.new()
+	audio.register_audio(&"main_theme", "res://audio/bgm/main_theme.ogg")
+	audio.register_voice_line(&"Ryone", 2, &"ryone_002", "res://audio/voice/ryone_002.ogg")
+	_assert(audio.validate_streams(true)["ok"], "AudioManager should validate registered stream metadata.")
+	var voice_play := audio.play_voice_for_line(&"Ryone", 2)
+	_assert(voice_play["ok"] and voice_play["channel"] == "voice", "AudioManager should auto-play associated voice lines.")
+	var backlog := BacklogManager.new()
+	var entry := backlog.add_dialogue("Ryone", "Voiced.", 2, {"voice": voice_play["id"]})
+	var replay := backlog.request_voice_replay(entry["id"], audio)
+	_assert(replay["playback"]["ok"], "BacklogManager should replay stored voice through AudioManager.")
+
+	var save := SaveManager.new()
+	save.enable_memory_storage(true)
+	_assert(save.save_game(&"slot_1", {"current_index": 7}, {"title": "Checkpoint"})["ok"], "SaveManager should write memory saves.")
+	var exported := save.export_save(&"slot_1")
+	_assert(str(exported["text"]).contains("Checkpoint"), "SaveManager should export save payloads.")
+	var encrypted := save.export_save(&"slot_1", true, "secret")
+	_assert(encrypted["encrypted"] and not str(encrypted["text"]).contains("Checkpoint"), "SaveManager should export encrypted save payloads.")
+	_assert(save.import_save(encrypted["text"], &"slot_2", "secret")["ok"], "SaveManager should import encrypted save payloads.")
+	_assert(save.load_game(&"slot_2")["state"]["current_index"] == 7, "SaveManager should preserve imported save state.")
+
+	var rollback := RollbackManager.new()
+	rollback.push_snapshot({"step": 1}, {"line": 10, "label": "start"})
+	rollback.push_snapshot({"step": 2}, {"line": 20, "label": "middle"})
+	rollback.push_snapshot({"step": 3}, {"line": 30, "label": "end"})
+	_assert(rollback.list_targets().size() == 3, "RollbackManager should list arbitrary rollback targets.")
+	_assert(rollback.rollback_to_line(20)["state"]["step"] == 2, "RollbackManager should rollback to a target line.")
+
+	var skip := SkipManager.new()
+	skip.mark_read("chapter_1:2")
+	var read_state := skip.export_read_state()
+	var restored_skip := SkipManager.new()
+	_assert(restored_skip.import_read_state(read_state)["ok"], "SkipManager should import persistent read state.")
+	_assert(restored_skip.is_read("chapter_1:2"), "SkipManager should persist read line identifiers.")
+
+	var parser := Parser.new()
+	var vm := VM.new()
+	vm.printer_manager = PrinterManager.new()
+	vm.backlog_manager = BacklogManager.new()
+	vm.audio_manager = audio
+	vm.load_script(parser.parse("label start:\n    Ryone: Voiced.", "voice.nvs"))
+	vm.run()
+	_assert(vm.transcript[0]["presentation"]["voice"] == "ryone_002", "NovellaVM should attach automatic voice playback to dialogue presentation.")
+	_assert(vm.backlog_manager.get_entries()[0]["voice"] == "ryone_002", "NovellaVM should store automatic voice ids in backlog entries.")
+
+
 func _test_vm_milestone_script() -> void:
 	var parser := Parser.new()
 	var ast = parser.parse(_sample_script(), "v0_2_demo.nvs")
@@ -1365,6 +1446,7 @@ func _release_file_list_for_tests() -> Array:
 		"addons/novella/editor/script_language_service.gd",
 		"addons/novella/editor/timeline_editor_model.gd",
 		"addons/novella/performance/on_demand_asset_loader.gd",
+		"addons/novella/presentation/scene_renderer.gd",
 		"addons/novella/ui/ui_feedback_manager.gd",
 		"addons/novella/ui/ui_skin_resource.gd",
 		"addons/novella/editor/ui/timeline_editor_panel.tscn",
@@ -1407,6 +1489,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/v1.2.0.md",
 		"docs/v1.3.0.md",
 		"docs/v1.4.0.md",
+		"docs/v1.5.0.md",
 		"examples/scripts/v1_0_showcase.nvs",
 		".github/workflows/release-check.yml",
 		"scripts/test-godot.ps1",
@@ -1422,7 +1505,7 @@ func _plugin_cfg_text_for_tests() -> String:
 name="Novella"
 description="Commercial-grade visual novel / GalGame framework for Godot 4."
 author="TodayYueC"
-version="1.4.0"
+version="1.5.0"
 script="novella_editor_plugin.gd"
 """
 

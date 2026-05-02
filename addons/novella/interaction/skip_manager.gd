@@ -42,6 +42,29 @@ func mark_read(line_id: Variant) -> void:
 	line_marked_read.emit(key)
 
 
+func export_read_state() -> String:
+	return JSON.stringify(read_lines)
+
+
+func import_read_state(serialized: String, merge: bool = true) -> Dictionary:
+	var parsed: Variant = JSON.parse_string(serialized)
+	if not (parsed is Dictionary):
+		return {"ok": false, "error": "Read state is not valid JSON."}
+	if not merge:
+		read_lines.clear()
+	for key in parsed:
+		if _as_bool(parsed[key]):
+			read_lines[str(key)] = true
+	return {"ok": true, "read_lines": read_lines.duplicate(true)}
+
+
+func read_state_payload() -> Dictionary:
+	return {
+		"read_lines": read_lines.duplicate(true),
+		"count": read_lines.size(),
+	}
+
+
 func is_read(line_id: Variant) -> bool:
 	return read_lines.has(str(line_id))
 

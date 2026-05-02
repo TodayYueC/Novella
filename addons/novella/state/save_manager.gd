@@ -215,6 +215,35 @@ func autosave_if(trigger: StringName, state: Dictionary, metadata: Dictionary = 
 	return autosave(state, next_metadata)
 
 
+func export_save(slot: StringName, encrypted: bool = false, passphrase: String = "") -> Dictionary:
+	var payload := load_game(slot)
+	if not bool(payload.get("ok", false)):
+		return payload
+	var text := JSON.stringify(_jsonify(payload))
+	if encrypted:
+		text = JSON.stringify({
+			"encrypted": true,
+			"version": SAVE_VERSION,
+			"payload": _xor_to_base64(text, passphrase),
+		})
+	return {"ok": true, "slot": String(slot), "encrypted": encrypted, "text": text}
+
+
+func import_save(serialized: String, slot_override: StringName = &"", passphrase: String = "") -> Dictionary:
+	var parsed: Variant = JSON.parse_string(serialized)
+	if not (parsed is Dictionary):
+		return {"ok": false, "error": "Save import text is not valid JSON."}
+	var payload: Dictionary = parsed
+	if bool(payload.get("encrypted", false)):
+		var decoded := _xor_from_base64(str(payload.get("payload", "")), passphrase)
+		var decrypted: Variant = JSON.parse_string(decoded)
+		if not (decrypted is Dictionary):
+			return {"ok": false, "error": "Encrypted save payload could not be decoded."}
+		payload = decrypted
+	var slot := slot_override if slot_override != &"" else StringName(str(payload.get("slot", "imported")))
+	return save_game(slot, payload.get("state", {}), payload.get("metadata", {}))
+
+
 func capture_thumbnail(viewport: Viewport, path: String) -> Dictionary:
 	if viewport == null:
 		return {"ok": false, "error": "No viewport supplied for thumbnail capture."}
@@ -349,6 +378,24 @@ func _jsonify(value: Variant) -> Variant:
 	if value is Object:
 		return str(value)
 	return value
+
+
+func _xor_to_base64(text: String, passphrase: String) -> String:
+	var bytes := text.to_utf8_buffer()
+	var key := passphrase if not passphrase.is_empty() else "novella"
+	var encoded := PackedByteArray()
+	for index in range(bytes.size()):
+		encoded.append(int(bytes[index]) ^ (key.unicode_at(index % key.length()) & 0xff))
+	return Marshalls.raw_to_base64(encoded)
+
+
+func _xor_from_base64(text: String, passphrase: String) -> String:
+	var bytes := Marshalls.base64_to_raw(text)
+	var key := passphrase if not passphrase.is_empty() else "novella"
+	var decoded := PackedByteArray()
+	for index in range(bytes.size()):
+		decoded.append(int(bytes[index]) ^ (key.unicode_at(index % key.length()) & 0xff))
+	return decoded.get_string_from_utf8()
 
 
 func _as_bool(value: Variant) -> bool:
