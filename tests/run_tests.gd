@@ -67,7 +67,7 @@ var failures: Array[String] = []
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v1.7.0 tests passed.")
+		print("Novella v2.0.0 tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -103,6 +103,7 @@ func _run_all() -> void:
 	_test_v1_5_presentation_audio_save()
 	_test_v1_6_meta_debug_performance_input()
 	_test_v1_7_docs_compatibility_audit()
+	_test_v2_0_final_acceptance()
 	_test_vm_milestone_script()
 
 
@@ -1214,6 +1215,22 @@ func _test_v1_7_docs_compatibility_audit() -> void:
 	_assert(parser.errors.is_empty() and ast.labels.has(&"ending"), "Full VN example script should parse without errors.")
 
 
+func _test_v2_0_final_acceptance() -> void:
+	_assert(Constants.VERSION == "2.0.0", "Constants should report v2.0.0.")
+	var manifest := ReleaseManifest.new()
+	_assert(manifest.package_name() == "novella-2.0.0.zip", "ReleaseManifest should build the v2.0.0 package name.")
+	var validator := ReleaseValidator.new()
+	_assert(validator.validate_release(_release_file_list_for_tests(), _plugin_cfg_text_for_tests())["ok"], "ReleaseValidator should accept the v2.0.0 release line.")
+	var audit := PRDAudit.new()
+	_assert(audit.report()["ok"], "Final PRD audit should pass for v2.0.0.")
+	for path in [
+		"res://docs/final_acceptance.md",
+		"res://docs/v2.0.0.md",
+		"res://LICENSE",
+	]:
+		_assert(FileAccess.file_exists(path), "v2.0.0 should include final acceptance files: %s" % path)
+
+
 func _test_vm_milestone_script() -> void:
 	var parser := Parser.new()
 	var ast = parser.parse(_sample_script(), "v0_2_demo.nvs")
@@ -1592,6 +1609,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/commands.md",
 		"docs/compatibility.md",
 		"docs/development.md",
+		"docs/final_acceptance.md",
 		"docs/prd_audit.md",
 		"docs/release.md",
 		"docs/tutorial_zh.md",
@@ -1611,6 +1629,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/v1.5.0.md",
 		"docs/v1.6.0.md",
 		"docs/v1.7.0.md",
+		"docs/v2.0.0.md",
 		"examples/full_vn/README.md",
 		"examples/full_vn/assets/README.md",
 		"examples/full_vn/scripts/chapter_01.nvs",
@@ -1629,7 +1648,7 @@ func _plugin_cfg_text_for_tests() -> String:
 name="Novella"
 description="Commercial-grade visual novel / GalGame framework for Godot 4."
 author="TodayYueC"
-version="1.7.0"
+version="2.0.0"
 script="novella_editor_plugin.gd"
 """
 

@@ -15,8 +15,8 @@ func validate_release(file_list: Array, plugin_cfg_text: String = "", options: D
 	_validate_package_roots(normalized_files, issues)
 	if not plugin_cfg_text.is_empty():
 		_validate_plugin_cfg(plugin_cfg_text, issues)
-	if not bool(options.get("allow_pre_1_0", false)) and not Constants.VERSION.begins_with("1."):
-		issues.append(_issue("error", "version", "Release version must be in the 1.x line. Current: %s." % Constants.VERSION))
+	if not bool(options.get("allow_pre_1_0", false)) and not _is_supported_release_line(Constants.VERSION):
+		issues.append(_issue("error", "version", "Release version must be in the supported 1.x or 2.x line. Current: %s." % Constants.VERSION))
 	return _result(issues)
 
 
@@ -107,6 +107,10 @@ func _is_forbidden_path(path: String) -> bool:
 		if path.to_lower().ends_with(extension):
 			return true
 	return false
+
+
+func _is_supported_release_line(version: String) -> bool:
+	return version.begins_with("1.") or version.begins_with("2.")
 
 
 func _issue(severity: String, code: String, message: String) -> Dictionary:

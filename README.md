@@ -1,6 +1,6 @@
 # Novella
 
-Novella is a Godot 4 visual novel / GalGame plugin. The current stable release is `1.7.0`. Godot 4.6 is the primary development and validation runtime, and Godot 4.3+ is the compatibility target for the Godot 4 line.
+Novella is a Godot 4 visual novel / GalGame plugin. The current stable release is `2.0.0`. Godot 4.6 is the primary development and validation runtime, and Godot 4.3+ is the compatibility target for the Godot 4 line.
 
 Novella is implemented in GDScript so projects can install, inspect, extend, and package it like a normal Godot addon. Godot also supports C++ / GDExtension plugins, but Novella keeps the 1.0 runtime script-first for portability, editor integration, and easier community contribution. Native modules can be added later behind the same public APIs if profiling shows a real bottleneck.
 
@@ -425,7 +425,7 @@ Commit source code, addon files, examples, tests, public docs, and small placeho
 
 ### 16. Release Status
 
-Implemented in `1.7.0`:
+Implemented in `2.0.0`:
 
 - v0.1 runtime core: lexer, parser, AST, VM, variables, command registry, and basic flow commands.
 - v0.2 presentation core: typewriter timing, rich text conversion, ADV/NVL printer state, character/background/effect/audio/camera managers, and presentation commands.
@@ -441,6 +441,7 @@ Implemented in `1.7.0`:
 - v1.5.0 presentation/audio/save completion: scene render plans, camera animation queues, shader/effect metadata, audio stream validation, automatic voice association, backlog voice replay, save import/export, optional encrypted save payloads, arbitrary rollback targets, and persistent read-state export/import.
 - v1.6.0 meta/debug/performance/input completion: typography and localized asset overrides, on-demand language packs, plural forms, split/merge localization helpers, music room, route map data, achievement notifications, debug panel models, command console UI data, node/performance/flow graph panel data, windowed on-demand loading, memory/FPS baselines, touch input, and gamepad input.
 - v1.7.0 docs/examples/compatibility/audit completion: full source-only VN example, bilingual API and command doc refresh, tutorial refresh, compatibility report APIs, public PRD audit, and targeted audit tests.
+- v2.0.0 official full PRD release: final acceptance documentation, 2.x release validation, package verification, public-ready tag, and GitHub Release artifact.
 
 Remaining verification:
 
@@ -810,7 +811,7 @@ print(status["message"])
 
 ### 16. 发布状态
 
-`1.7.0` 已包含：
+`2.0.0` 已包含：
 
 - v0.1 运行时核心：lexer、parser、AST、VM、变量、命令注册和基础流程命令。
 - v0.2 表现层核心：打字机、富文本、ADV/NVL printer 状态、角色/背景/特效/音频/镜头管理器和表现层命令。
@@ -826,6 +827,7 @@ print(status["message"])
 - v1.5.0 表现/音频/存档补全：场景渲染计划、镜头动画队列、shader/特效元数据、音频流验证、自动语音绑定、backlog 语音回放、存档导入导出、可选加密存档、任意回滚目标和已读状态持久化导入导出。
 - v1.6.0 元系统/调试/性能/输入补全：排版与本地化资源覆盖、按需语言包、复数形式、文本拆分合并、本地音乐室、路线图数据、成就通知、调试面板模型、命令控制台 UI 数据、节点/性能/流程图面板数据、窗口化按需加载、内存/FPS 基线、触控输入和手柄输入。
 - v1.7.0 文档/示例/兼容性/审计补全：完整源码型 VN 示例、中英 API 和命令文档刷新、教程刷新、兼容性报告 API、公开 PRD 审计和审计测试。
+- v2.0.0 PRD 全量正式版：最终验收文档、2.x 发布校验、包内容验证、公开正式 tag 和 GitHub Release 产物。
 
 剩余验证：
 

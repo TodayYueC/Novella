@@ -51,6 +51,7 @@ $requiredFiles = @(
     "docs/commands.md",
     "docs/compatibility.md",
     "docs/development.md",
+    "docs/final_acceptance.md",
     "docs/prd_audit.md",
     "docs/release.md",
     "docs/tutorial_zh.md",
@@ -70,6 +71,7 @@ $requiredFiles = @(
     "docs/v1.5.0.md",
     "docs/v1.6.0.md",
     "docs/v1.7.0.md",
+    "docs/v2.0.0.md",
     "examples/full_vn/README.md",
     "examples/full_vn/assets/README.md",
     "examples/full_vn/scripts/chapter_01.nvs",
@@ -125,8 +127,8 @@ if ($pluginVersion -ne $constantVersion) {
     throw "Version mismatch: plugin.cfg=$pluginVersion constants.gd=$constantVersion"
 }
 
-if ($constantVersion -notmatch '^1\.') {
-    throw "Expected a v1 release version. Found $constantVersion"
+if ($constantVersion -notmatch '^(1|2)\.') {
+    throw "Expected a v1 or v2 release version. Found $constantVersion"
 }
 
 if (-not $SkipGodotTests) {

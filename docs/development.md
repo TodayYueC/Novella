@@ -15,15 +15,15 @@ The planned split is:
 - Keep editor UI, authoring tools, resources, and service wiring in GDScript.
 - Consider C++ / GDExtension for parser hot paths, bytecode execution, expression evaluation, or large-scale asset processing after the API stabilizes.
 
-## Versioned Roadmap After v1.7.0
+## Versioned Roadmap After v2.0.0
 
-`v1.4.0` completed the editor, asset, and UI production-tools phase. `v1.5.0` completed the presentation, audio, and save-system phase. `v1.6.0` completed the meta, debugging, performance, and input phase. `v1.7.0` completed the documentation, examples, compatibility, and PRD audit phase. Future iterations must follow this version order. Each phase version is completed as one milestone, then tested, packaged, committed, tagged, pushed, and published as a GitHub Release before moving to the next phase.
+`v1.4.0` completed the editor, asset, and UI production-tools phase. `v1.5.0` completed the presentation, audio, and save-system phase. `v1.6.0` completed the meta, debugging, performance, and input phase. `v1.7.0` completed the documentation, examples, compatibility, and PRD audit phase. `v2.0.0` is the official full PRD release. Future feature work after 2.0 must use a new explicit roadmap before implementation.
 
 Patch releases such as `v1.4.1` are reserved for urgent regressions only. Planned feature work should not be split into ad-hoc mini versions such as `v1.4.1`, `v1.4.2`, or `v1.4.3`; the next planned feature milestone remains the next phase version.
 
 | Version | Phase | Milestone |
 | --- | --- | --- |
-| `v2.0.0` | Full PRD official release | Final acceptance, release-candidate stabilization, packaging polish, artifact verification, tag, GitHub Release, and public-ready full PRD release. |
+| `v2.0.0` | Full PRD official release | Complete: final acceptance, release-candidate stabilization, packaging polish, artifact verification, tag, GitHub Release, and public-ready full PRD release. |
 
 Every milestone uses the same release checklist:
 
