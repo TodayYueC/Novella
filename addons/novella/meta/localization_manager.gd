@@ -12,6 +12,9 @@ var fallback_locale: StringName = &"en"
 var auto_translate_keys: bool = true
 var catalogs: Dictionary = {}
 var missing_keys: Dictionary = {}
+var typography_rules: Dictionary = {}
+var asset_overrides: Dictionary = {}
+var language_packs: Dictionary = {}
 
 func _init() -> void:
 	add_locale(default_locale)
@@ -126,6 +129,79 @@ func import_csv(locale: StringName, csv_text: String, replace: bool = false) -> 
 	return {"ok": true, "locale": String(locale), "imported": imported}
 
 
+func configure_typography(locale: StringName, rules: Dictionary) -> Dictionary:
+	typography_rules[locale] = rules.duplicate(true)
+	return {"ok": true, "locale": String(locale), "typography": typography_rules[locale].duplicate(true)}
+
+
+func typography_for(locale: StringName = &"") -> Dictionary:
+	var target := current_locale if locale == &"" else locale
+	return typography_rules.get(target, typography_rules.get(fallback_locale, {})).duplicate(true)
+
+
+func add_asset_override(locale: StringName, asset_id: StringName, path: String) -> Dictionary:
+	if not asset_overrides.has(locale):
+		asset_overrides[locale] = {}
+	asset_overrides[locale][asset_id] = path
+	return {"ok": true, "locale": String(locale), "asset_id": String(asset_id), "path": path}
+
+
+func resolve_asset(asset_id: StringName, locale: StringName = &"") -> String:
+	var target := current_locale if locale == &"" else locale
+	if asset_overrides.has(target) and asset_overrides[target].has(asset_id):
+		return str(asset_overrides[target][asset_id])
+	if target != fallback_locale and asset_overrides.has(fallback_locale) and asset_overrides[fallback_locale].has(asset_id):
+		return str(asset_overrides[fallback_locale][asset_id])
+	return String(asset_id)
+
+
+func register_language_pack(pack_id: StringName, locale: StringName, data: Dictionary) -> Dictionary:
+	language_packs[pack_id] = {
+		"id": String(pack_id),
+		"locale": String(locale),
+		"entries": data.get("entries", {}).duplicate(true) if data.get("entries", {}) is Dictionary else {},
+		"assets": data.get("assets", {}).duplicate(true) if data.get("assets", {}) is Dictionary else {},
+		"typography": data.get("typography", {}).duplicate(true) if data.get("typography", {}) is Dictionary else {},
+	}
+	return {"ok": true, "pack": language_packs[pack_id].duplicate(true)}
+
+
+func load_language_pack(pack_id: StringName) -> Dictionary:
+	if not language_packs.has(pack_id):
+		return {"ok": false, "error": "Unknown language pack '%s'." % String(pack_id)}
+	var pack: Dictionary = language_packs[pack_id]
+	var locale := StringName(str(pack.get("locale", current_locale)))
+	add_locale(locale, pack.get("entries", {}), false)
+	for asset_id in pack.get("assets", {}):
+		add_asset_override(locale, StringName(str(asset_id)), str(pack["assets"][asset_id]))
+	configure_typography(locale, pack.get("typography", {}))
+	return {"ok": true, "locale": String(locale), "pack": pack.duplicate(true)}
+
+
+func plural(key_base: StringName, count: int, replacements: Variant = {}, locale: StringName = &"") -> String:
+	var suffix := "one" if count == 1 else "other"
+	var data := _replacement_dictionary(replacements)
+	data["count"] = count
+	return translate(StringName("%s.%s" % [String(key_base), suffix]), data, locale)
+
+
+func split_translation(locale: StringName, key: StringName, parts: Array) -> Dictionary:
+	add_locale(locale)
+	var keys: Array = []
+	for index in range(parts.size()):
+		var part_key := StringName("%s.%s" % [String(key), index + 1])
+		add_translation(locale, part_key, str(parts[index]))
+		keys.append(String(part_key))
+	return {"ok": true, "locale": String(locale), "base": String(key), "keys": keys}
+
+
+func merge_translations(locale: StringName, keys: Array, separator: String = "\n") -> String:
+	var parts: Array[String] = []
+	for key_value in keys:
+		parts.append(translate(StringName(str(key_value)), {}, locale))
+	return separator.join(parts)
+
+
 func export_template(keys: Array, locale: StringName = &"", include_existing: bool = true) -> String:
 	var target := current_locale if locale == &"" else locale
 	add_locale(target)
@@ -187,6 +263,9 @@ func get_state() -> Dictionary:
 		"auto_translate_keys": auto_translate_keys,
 		"catalogs": catalogs.duplicate(true),
 		"missing_keys": missing_keys.duplicate(true),
+		"typography_rules": typography_rules.duplicate(true),
+		"asset_overrides": asset_overrides.duplicate(true),
+		"language_packs": language_packs.duplicate(true),
 	}
 
 
@@ -197,6 +276,9 @@ func restore_state(state: Dictionary) -> void:
 	auto_translate_keys = _as_bool(state.get("auto_translate_keys", auto_translate_keys))
 	catalogs = _string_name_catalogs(state.get("catalogs", catalogs))
 	missing_keys = state.get("missing_keys", {}).duplicate(true)
+	typography_rules = _string_name_nested_dict(state.get("typography_rules", typography_rules))
+	asset_overrides = _string_name_nested_dict(state.get("asset_overrides", asset_overrides))
+	language_packs = _string_name_nested_dict(state.get("language_packs", language_packs))
 	add_locale(default_locale)
 	add_locale(fallback_locale)
 	add_locale(current_locale)
@@ -245,6 +327,13 @@ func _string_name_catalogs(source: Dictionary) -> Dictionary:
 		var catalog: Dictionary = source[locale]
 		for key in catalog:
 			result[locale_name][StringName(str(key))] = str(catalog[key])
+	return result
+
+
+func _string_name_nested_dict(source: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	for key in source:
+		result[StringName(str(key))] = source[key].duplicate(true) if source[key] is Dictionary else source[key]
 	return result
 
 

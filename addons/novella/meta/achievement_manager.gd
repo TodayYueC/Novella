@@ -10,6 +10,7 @@ signal achievement_progressed(achievement_id: StringName, progress: float, targe
 
 var achievements: Dictionary = {}
 var unlock_order: Array = []
+var notifications: Array = []
 var evaluator := ExpressionEvaluator.new()
 
 func register_achievement(achievement_id: StringName, data: Dictionary = {}, replace: bool = true) -> Dictionary:
@@ -45,6 +46,7 @@ func unlock(achievement_id: StringName, data: Dictionary = {}) -> Dictionary:
 	achievements[achievement_id] = achievement
 	if not was_unlocked:
 		unlock_order.append(String(achievement_id))
+		notifications.append({"id": String(achievement_id), "title": achievement.get("title", ""), "kind": "achievement"})
 		achievement_unlocked.emit(achievement_id, achievement.duplicate(true))
 	return achievement.duplicate(true)
 
@@ -95,16 +97,37 @@ func list_achievements(include_hidden: bool = true) -> Array:
 	return result
 
 
+func progress_summary() -> Dictionary:
+	var unlocked := 0
+	for achievement_id in achievements:
+		if _as_bool(achievements[achievement_id].get("unlocked", false)):
+			unlocked += 1
+	return {
+		"total": achievements.size(),
+		"unlocked": unlocked,
+		"locked": achievements.size() - unlocked,
+		"percent": 100.0 if achievements.is_empty() else (float(unlocked) / float(achievements.size())) * 100.0,
+	}
+
+
+func consume_notifications() -> Array:
+	var result := notifications.duplicate(true)
+	notifications.clear()
+	return result
+
+
 func get_state() -> Dictionary:
 	return {
 		"achievements": achievements.duplicate(true),
 		"unlock_order": unlock_order.duplicate(true),
+		"notifications": notifications.duplicate(true),
 	}
 
 
 func restore_state(state: Dictionary) -> void:
 	achievements = _string_name_achievements(state.get("achievements", achievements))
 	unlock_order = state.get("unlock_order", []).duplicate(true)
+	notifications = state.get("notifications", []).duplicate(true)
 
 
 func _string_name_achievements(source: Dictionary) -> Dictionary:

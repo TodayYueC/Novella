@@ -12,6 +12,7 @@ const PresentationCommands := preload("res://addons/novella/script/commands/pres
 const InteractionCommands := preload("res://addons/novella/script/commands/interaction_commands.gd")
 const MetaCommands := preload("res://addons/novella/script/commands/meta_commands.gd")
 const VM := preload("res://addons/novella/script/novella_vm.gd")
+const InputHandler := preload("res://addons/novella/core/input_handler.gd")
 const RichTextParser := preload("res://addons/novella/presentation/rich_text_parser.gd")
 const TypewriterEffect := preload("res://addons/novella/presentation/typewriter_effect.gd")
 const PrinterManager := preload("res://addons/novella/presentation/printer_manager.gd")
@@ -46,6 +47,7 @@ const ScriptDiagnostics := preload("res://addons/novella/editor/script_diagnosti
 const TemplateLibrary := preload("res://addons/novella/editor/script_template_library.gd")
 const AssetIndex := preload("res://addons/novella/editor/asset_index.gd")
 const DeveloperTools := preload("res://addons/novella/debug/developer_tools.gd")
+const DebugPanelModel := preload("res://addons/novella/debug/debug_panel_model.gd")
 const FlowGraphBuilder := preload("res://addons/novella/debug/flow_graph_builder.gd")
 const UISkinResource := preload("res://addons/novella/ui/ui_skin_resource.gd")
 const UIFeedbackManager := preload("res://addons/novella/ui/ui_feedback_manager.gd")
@@ -53,6 +55,7 @@ const LocalizationManager := preload("res://addons/novella/meta/localization_man
 const GalleryManager := preload("res://addons/novella/meta/gallery_manager.gd")
 const AchievementManager := preload("res://addons/novella/meta/achievement_manager.gd")
 const OnDemandAssetLoader := preload("res://addons/novella/performance/on_demand_asset_loader.gd")
+const PerformanceBudget := preload("res://addons/novella/performance/performance_budget.gd")
 const ScriptMigration := preload("res://addons/novella/script/script_migration.gd")
 const CompatibilityMatrix := preload("res://addons/novella/release/compatibility_matrix.gd")
 const ReleaseManifest := preload("res://addons/novella/release/release_manifest.gd")
@@ -63,7 +66,7 @@ var failures: Array[String] = []
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v1.5.0 tests passed.")
+		print("Novella v1.6.0 tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -97,6 +100,7 @@ func _run_all() -> void:
 	_test_v1_3_developer_tooling()
 	_test_v1_4_editor_assets_ui()
 	_test_v1_5_presentation_audio_save()
+	_test_v1_6_meta_debug_performance_input()
 	_test_vm_milestone_script()
 
 
@@ -1100,6 +1104,83 @@ func _test_v1_5_presentation_audio_save() -> void:
 	_assert(vm.backlog_manager.get_entries()[0]["voice"] == "ryone_002", "NovellaVM should store automatic voice ids in backlog entries.")
 
 
+func _test_v1_6_meta_debug_performance_input() -> void:
+	var localization := LocalizationManager.new()
+	localization.register_language_pack(&"ja_pack", &"ja", {
+		"entries": {
+			"items.one": "{count} item",
+			"items.other": "{count} items",
+			"line.part.1": "Hello",
+		},
+		"assets": {"school_day": "res://art/backgrounds/school_day_ja.png"},
+		"typography": {"font": "Noto Sans JP", "line_break": "strict"},
+	})
+	_assert(localization.load_language_pack(&"ja_pack")["ok"], "LocalizationManager should load on-demand language packs.")
+	_assert(localization.plural(&"items", 2, {}, &"ja") == "2 items", "LocalizationManager should resolve baseline plural forms.")
+	_assert(localization.resolve_asset(&"school_day", &"ja").contains("_ja.png"), "LocalizationManager should resolve localized asset overrides.")
+	_assert(localization.typography_for(&"ja")["font"] == "Noto Sans JP", "LocalizationManager should expose typography rules.")
+	var split := localization.split_translation(&"ja", &"line.split", ["A", "B"])
+	_assert(localization.merge_translations(&"ja", split["keys"], " ") == "A B", "LocalizationManager should split and merge line translations.")
+
+	var gallery := GalleryManager.new()
+	gallery.register_music_track(&"main_theme", {"title": "Main Theme", "asset": "res://audio/bgm/main_theme.ogg", "order": 1})
+	gallery.unlock_music(&"main_theme")
+	gallery.register_route_node(&"start", {"title": "Start", "unlocked": true, "edges": ["good_end"]})
+	gallery.register_route_node(&"good_end", {"title": "Good End", "unlocked": false})
+	_assert(gallery.list_music_room(false).size() == 1, "GalleryManager should expose unlocked music room entries.")
+	_assert(gallery.build_route_map(true)["edges"].size() == 1, "GalleryManager should build route map data.")
+
+	var achievements := AchievementManager.new()
+	achievements.register_achievement(&"collector", {"title": "Collector", "target": 2})
+	achievements.add_progress(&"collector", 1)
+	achievements.add_progress(&"collector", 1)
+	_assert(achievements.progress_summary()["unlocked"] == 1, "AchievementManager should summarize progress.")
+	_assert(achievements.consume_notifications().size() == 1, "AchievementManager should queue unlock notifications for UI.")
+
+	var variables := VariableManager.new()
+	var registry := CommandRegistry.new()
+	var basic := BasicCommands.new()
+	basic.register_all(registry, variables)
+	var parser := Parser.new()
+	var ast = parser.parse("label start:\n    Ryone: Debug.", "debug.nvs")
+	var vm := VM.new()
+	vm.variable_manager = variables
+	vm.command_registry = registry
+	vm.load_script(ast)
+	vm.run()
+	var debug_panel := DebugPanelModel.new()
+	var console := debug_panel.execute_console_line("@var debug_score = 1", registry, {"variables": variables})
+	_assert(console["ok"] and variables.get_variable(&"debug_score") == 1, "DebugPanelModel should execute command-console lines.")
+	var panels := debug_panel.build_panels(vm, variables, registry, null, ast)
+	_assert(panels["trace"]["ok"] and panels["flow_graph"]["stats"]["nodes"] >= 1, "DebugPanelModel should build trace and flow graph panels.")
+
+	var loader := OnDemandAssetLoader.new()
+	var indexer := AssetIndex.new()
+	var assets := [
+		"res://art/backgrounds/school_day.png",
+		"res://audio/bgm/main_theme.ogg",
+	]
+	var index := indexer.build(assets)
+	var plan := loader.build_plan([
+		{"type": "background", "command": "bg", "id": "school_day", "line": 2},
+		{"type": "audio", "command": "play_music", "id": "main_theme", "line": 3},
+	], index, {"dry_run": true})
+	_assert(loader.validate_audio_streaming(plan)["ok"], "OnDemandAssetLoader should validate audio streaming metadata.")
+	_assert(loader.load_window(plan, 2, {"dry_run": true})["loaded"].size() == 2, "OnDemandAssetLoader should load asset windows.")
+	_assert(loader.memory_report()["loaded_count"] == 2, "OnDemandAssetLoader should report loaded asset memory state.")
+
+	var budget := PerformanceBudget.new()
+	var baseline := budget.capture(null, loader.get_loaded_assets())
+	budget.set_baseline(&"default", baseline)
+	var comparison := budget.compare(&"default", budget.capture(null, loader.get_loaded_assets()), {"node_count": 1000000})
+	_assert(comparison["ok"], "PerformanceBudget should compare memory/FPS baselines.")
+
+	var input := InputHandler.new()
+	_assert(input.handle_input_event_data({"device": "touch", "gesture": "tap"})["action"] == "advance", "InputHandler should map touch gestures.")
+	_assert(input.handle_input_event_data({"device": "gamepad", "button": "button_y"})["action"] == "quick_save", "InputHandler should map gamepad buttons.")
+	_assert(input.get_input_help(&"gamepad")["bindings"].has("advance"), "InputHandler should expose gamepad input help.")
+
+
 func _test_vm_milestone_script() -> void:
 	var parser := Parser.new()
 	var ast = parser.parse(_sample_script(), "v0_2_demo.nvs")
@@ -1438,6 +1519,8 @@ func _release_file_list_for_tests() -> Array:
 		"addons/novella/novella.gd",
 		"addons/novella/novella_editor_plugin.gd",
 		"addons/novella/core/constants.gd",
+		"addons/novella/core/input_handler.gd",
+		"addons/novella/debug/debug_panel_model.gd",
 		"addons/novella/debug/developer_tools.gd",
 		"addons/novella/debug/flow_graph_builder.gd",
 		"addons/novella/editor/editor_preview_session.gd",
@@ -1446,6 +1529,7 @@ func _release_file_list_for_tests() -> Array:
 		"addons/novella/editor/script_language_service.gd",
 		"addons/novella/editor/timeline_editor_model.gd",
 		"addons/novella/performance/on_demand_asset_loader.gd",
+		"addons/novella/performance/performance_budget.gd",
 		"addons/novella/presentation/scene_renderer.gd",
 		"addons/novella/ui/ui_feedback_manager.gd",
 		"addons/novella/ui/ui_skin_resource.gd",
@@ -1490,6 +1574,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/v1.3.0.md",
 		"docs/v1.4.0.md",
 		"docs/v1.5.0.md",
+		"docs/v1.6.0.md",
 		"examples/scripts/v1_0_showcase.nvs",
 		".github/workflows/release-check.yml",
 		"scripts/test-godot.ps1",
@@ -1505,7 +1590,7 @@ func _plugin_cfg_text_for_tests() -> String:
 name="Novella"
 description="Commercial-grade visual novel / GalGame framework for Godot 4."
 author="TodayYueC"
-version="1.5.0"
+version="1.6.0"
 script="novella_editor_plugin.gd"
 """
 

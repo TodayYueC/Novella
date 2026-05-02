@@ -8,6 +8,8 @@ signal item_viewed(item_id: StringName)
 
 var items: Dictionary = {}
 var unlock_log: Array = []
+var music_tracks: Dictionary = {}
+var route_nodes: Dictionary = {}
 
 func register_item(item_id: StringName, data: Dictionary = {}, replace: bool = true) -> Dictionary:
 	if items.has(item_id) and not replace:
@@ -58,6 +60,63 @@ func unlock_replay(replay_id: StringName, label: StringName, data: Dictionary = 
 	return unlock_item(replay_id, payload)
 
 
+func register_music_track(track_id: StringName, data: Dictionary = {}, replace: bool = true) -> Dictionary:
+	if music_tracks.has(track_id) and not replace:
+		return music_tracks[track_id].duplicate(true)
+	var existing: Dictionary = music_tracks.get(track_id, {})
+	music_tracks[track_id] = {
+		"id": String(track_id),
+		"title": str(data.get("title", existing.get("title", String(track_id)))),
+		"artist": str(data.get("artist", existing.get("artist", ""))),
+		"asset": str(data.get("asset", existing.get("asset", ""))),
+		"unlocked": _as_bool(data.get("unlocked", existing.get("unlocked", false))),
+		"order": int(data.get("order", existing.get("order", 0))),
+	}
+	return music_tracks[track_id].duplicate(true)
+
+
+func unlock_music(track_id: StringName, data: Dictionary = {}) -> Dictionary:
+	var track := register_music_track(track_id, data, false)
+	track["unlocked"] = true
+	music_tracks[track_id] = track
+	return track.duplicate(true)
+
+
+func list_music_room(include_locked: bool = true) -> Array:
+	var result: Array = []
+	for track_id in music_tracks:
+		var track: Dictionary = music_tracks[track_id]
+		if include_locked or _as_bool(track.get("unlocked", false)):
+			result.append(track.duplicate(true))
+	result.sort_custom(func(a, b): return int(a.get("order", 0)) < int(b.get("order", 0)))
+	return result
+
+
+func register_route_node(node_id: StringName, data: Dictionary = {}) -> Dictionary:
+	route_nodes[node_id] = {
+		"id": String(node_id),
+		"title": str(data.get("title", String(node_id))),
+		"label": str(data.get("label", node_id)),
+		"unlocked": _as_bool(data.get("unlocked", false)),
+		"edges": data.get("edges", []).duplicate(true) if data.get("edges", []) is Array else [],
+		"metadata": data.get("metadata", {}).duplicate(true) if data.get("metadata", {}) is Dictionary else {},
+	}
+	return route_nodes[node_id].duplicate(true)
+
+
+func build_route_map(include_locked: bool = true) -> Dictionary:
+	var nodes: Array = []
+	var edges: Array = []
+	for node_id in route_nodes:
+		var node: Dictionary = route_nodes[node_id]
+		if not include_locked and not _as_bool(node.get("unlocked", false)):
+			continue
+		nodes.append(node.duplicate(true))
+		for target in node.get("edges", []):
+			edges.append({"from": String(node_id), "to": str(target)})
+	return {"ok": true, "nodes": nodes, "edges": edges}
+
+
 func lock_item(item_id: StringName) -> Dictionary:
 	if not items.has(item_id):
 		return {"ok": true, "locked": false, "id": String(item_id)}
@@ -98,12 +157,16 @@ func get_state() -> Dictionary:
 	return {
 		"items": items.duplicate(true),
 		"unlock_log": unlock_log.duplicate(true),
+		"music_tracks": music_tracks.duplicate(true),
+		"route_nodes": route_nodes.duplicate(true),
 	}
 
 
 func restore_state(state: Dictionary) -> void:
 	items = _string_name_items(state.get("items", items))
 	unlock_log = state.get("unlock_log", []).duplicate(true)
+	music_tracks = _string_name_items(state.get("music_tracks", music_tracks))
+	route_nodes = _string_name_items(state.get("route_nodes", route_nodes))
 
 
 func _string_name_items(source: Dictionary) -> Dictionary:

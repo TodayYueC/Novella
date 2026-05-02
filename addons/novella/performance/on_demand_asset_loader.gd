@@ -61,6 +61,35 @@ func load_next(plan: Dictionary, options: Dictionary = {}) -> Dictionary:
 	return {"ok": false, "empty": true, "loaded_assets": loaded_assets.keys()}
 
 
+func load_window(plan: Dictionary, count: int = 4, options: Dictionary = {}) -> Dictionary:
+	var loaded: Array = []
+	for _i in range(maxi(1, count)):
+		var result := load_next(plan, options)
+		if not bool(result.get("ok", false)):
+			break
+		loaded.append(result)
+	return {"ok": true, "loaded": loaded, "loaded_assets": loaded_assets.keys()}
+
+
+func validate_audio_streaming(plan: Dictionary) -> Dictionary:
+	var warnings: Array = []
+	for entry in plan.get("queue", []):
+		if not entry is Dictionary:
+			continue
+		if str(entry.get("category", "")) == "audio" and not bool(entry.get("streaming", false)):
+			warnings.append({"id": entry.get("id", ""), "path": entry.get("path", ""), "message": "Audio entry is not marked for streaming."})
+	return {"ok": warnings.is_empty(), "warnings": warnings}
+
+
+func memory_report() -> Dictionary:
+	return {
+		"ok": true,
+		"loaded_count": loaded_assets.size(),
+		"loaded_ids": loaded_assets.keys(),
+		"dry_run": dry_run,
+	}
+
+
 func load_asset(entry: Dictionary, options: Dictionary = {}) -> Dictionary:
 	var asset_id := str(entry.get("id", ""))
 	var path := str(entry.get("path", ""))
