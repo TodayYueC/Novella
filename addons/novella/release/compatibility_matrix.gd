@@ -43,9 +43,19 @@ const TARGETS := [
 	},
 ]
 
+var local_results: Dictionary = {}
 
 func get_targets() -> Array:
 	return TARGETS.duplicate(true)
+
+
+func record_verification(version: String, passed: bool, notes: String = "") -> Dictionary:
+	local_results[version] = {
+		"version": version,
+		"passed": passed,
+		"notes": notes,
+	}
+	return local_results[version].duplicate(true)
 
 
 func get_target(version: String) -> Dictionary:
@@ -78,6 +88,37 @@ func validate_primary() -> Dictionary:
 		"minimum": "%s.%s" % [Constants.MIN_GODOT_MAJOR, Constants.MIN_GODOT_MINOR],
 		"primary": "%s.%s" % [Constants.PRIMARY_GODOT_MAJOR, Constants.PRIMARY_GODOT_MINOR],
 	}
+
+
+func compatibility_report() -> Dictionary:
+	var targets := get_targets()
+	var verified: Array = []
+	var pending: Array = []
+	for target in targets:
+		var version := str(target.get("version", ""))
+		var local: Dictionary = local_results.get(version, {})
+		var is_verified := bool(target.get("verified", false)) or bool(local.get("passed", false))
+		if is_verified:
+			verified.append(version)
+		else:
+			pending.append(version)
+	return {
+		"ok": validate_primary()["ok"],
+		"minimum": get_minimum_target(),
+		"primary": get_primary_target(),
+		"targets": targets,
+		"verified": verified,
+		"pending": pending,
+		"local_results": local_results.duplicate(true),
+	}
+
+
+func api_compatibility_checks() -> Array:
+	return [
+		{"id": "godot_4_line", "ok": Constants.MIN_GODOT_MAJOR == 4, "message": "Novella targets the Godot 4 API line."},
+		{"id": "minimum_4_3", "ok": Constants.MIN_GODOT_MINOR <= 3, "message": "Minimum target remains Godot 4.3+."},
+		{"id": "primary_4_6", "ok": Constants.PRIMARY_GODOT_MINOR == 6, "message": "Primary validation runtime remains Godot 4.6."},
+	]
 
 
 func runtime_status(version_info: Dictionary = {}) -> Dictionary:

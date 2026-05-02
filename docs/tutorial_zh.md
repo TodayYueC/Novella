@@ -699,3 +699,13 @@ git rm --cached path/to/file
 5. 运行打包脚本。
 6. 检查 `dist/novella-<version>.zip`。
 7. 提交、打 tag、推送。
+# v1.7 完整示例
+
+完整示例工程位于 `examples/full_vn/`。推荐阅读顺序：
+
+1. 打开 `examples/full_vn/README.md` 查看示例结构。
+2. 打开 `examples/full_vn/scripts/chapter_01.nvs` 查看完整剧情脚本。
+3. 对照 `docs/commands.md` 理解脚本中使用的命令。
+4. 对照 `docs/prd_audit.md` 查看 PRD 模块完成状态。
+
+示例目录只包含文本和占位说明，不包含 Godot 引擎、导出模板或大型媒体资源。

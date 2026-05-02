@@ -1,6 +1,6 @@
 extends RefCounted
 
-const VERSION := "1.6.0"
+const VERSION := "1.7.0"
 const MIN_GODOT_MAJOR := 4
 const MIN_GODOT_MINOR := 3
 const PRIMARY_GODOT_MAJOR := 4

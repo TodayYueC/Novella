@@ -64,3 +64,24 @@ Novella commands are written with an `@` prefix inside `.nvs` files.
 - `@meta_check achievement:first_step`
 
 `@language` and `@achieve` remain accepted aliases for compatibility. New scripts should prefer `@locale` and `@achievement`.
+## v1.7 Example Command Coverage
+
+The full VN example at `examples/full_vn/scripts/chapter_01.nvs` demonstrates:
+
+- `@locale`, `@translation`
+- `@bg`, `@char`, `@shake`
+- `@play_music`, `@stop_music`
+- `@set`, `menu`, `jump`
+- `@gallery`, `@achievement`
+- `@mode`, `@save`
+
+## v1.7 示例命令覆盖
+
+完整示例 `examples/full_vn/scripts/chapter_01.nvs` 覆盖：
+
+- `@locale`、`@translation`
+- `@bg`、`@char`、`@shake`
+- `@play_music`、`@stop_music`
+- `@set`、`menu`、`jump`
+- `@gallery`、`@achievement`
+- `@mode`、`@save`

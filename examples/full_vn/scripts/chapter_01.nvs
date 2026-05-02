@@ -1,0 +1,41 @@
+# novella_version: 1.7
+@var player = "Yue"
+@var affinity = 0
+@var route = ""
+
+label start:
+    @locale en
+    @translation en line.hello text:"Hello {player}. Welcome to the full Novella example."
+    @translation en choice.stay text:"Stay for a while"
+    @translation en choice.leave text:"Leave for now"
+    @bg school_day transition:dissolve time:0.6
+    @char ryone uniform_happy pos:left enter:fade
+    @play_music main_theme fade:1.0
+    Ryone: $line.hello
+    @set affinity += 5
+    menu:
+        "$choice.stay" if affinity >= 5:
+            @set route = "stay"
+            @gallery unlock cg_school title:"School Memory" asset:res://gallery/cg_school.png
+            @achievement unlock first_choice title:"First Choice"
+            Ryone: I am glad you stayed.
+            jump stay_path
+        "$choice.leave":
+            @set route = "leave"
+            jump leave_path
+
+label stay_path:
+    @mode nvl
+    The classroom grows quiet, but the promise remains.
+    @mode adv
+    @save slot_1 title:"Stay Route"
+    jump ending
+
+label leave_path:
+    @shake intensity:0.2 duration:0.2
+    Ryone: Then I will see you another day.
+    jump ending
+
+label ending:
+    @stop_music fade:0.5
+    Ryone: Route: {route}.

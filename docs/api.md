@@ -95,3 +95,16 @@ if migration["ok"]:
 ```
 
 The migration helper adds a `# novella_version: 1.0` header and rewrites known deprecated aliases such as `@language` and `@achieve`.
+## v1.7 Public API Additions
+
+- `NovellaCompatibilityMatrix.compatibility_report()` returns target, verified, pending, and local verification data.
+- `NovellaCompatibilityMatrix.api_compatibility_checks()` returns Godot 4.x compatibility guard checks.
+- `NovellaPRDAudit.report()` returns module completion data for public release review.
+- `NovellaPRDAudit.markdown()` returns a Markdown audit table.
+
+## v1.7 公共 API 新增
+
+- `NovellaCompatibilityMatrix.compatibility_report()` 返回目标版本、已验证版本、待验证版本和本地验证记录。
+- `NovellaCompatibilityMatrix.api_compatibility_checks()` 返回 Godot 4.x 兼容性检查。
+- `NovellaPRDAudit.report()` 返回公开发布审计所需的模块完成情况。
+- `NovellaPRDAudit.markdown()` 返回 Markdown 格式审计表。

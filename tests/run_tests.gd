@@ -58,6 +58,7 @@ const OnDemandAssetLoader := preload("res://addons/novella/performance/on_demand
 const PerformanceBudget := preload("res://addons/novella/performance/performance_budget.gd")
 const ScriptMigration := preload("res://addons/novella/script/script_migration.gd")
 const CompatibilityMatrix := preload("res://addons/novella/release/compatibility_matrix.gd")
+const PRDAudit := preload("res://addons/novella/release/prd_audit.gd")
 const ReleaseManifest := preload("res://addons/novella/release/release_manifest.gd")
 const ReleaseValidator := preload("res://addons/novella/release/release_validator.gd")
 
@@ -66,7 +67,7 @@ var failures: Array[String] = []
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v1.6.0 tests passed.")
+		print("Novella v1.7.0 tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -101,6 +102,7 @@ func _run_all() -> void:
 	_test_v1_4_editor_assets_ui()
 	_test_v1_5_presentation_audio_save()
 	_test_v1_6_meta_debug_performance_input()
+	_test_v1_7_docs_compatibility_audit()
 	_test_vm_milestone_script()
 
 
@@ -1181,6 +1183,37 @@ func _test_v1_6_meta_debug_performance_input() -> void:
 	_assert(input.get_input_help(&"gamepad")["bindings"].has("advance"), "InputHandler should expose gamepad input help.")
 
 
+func _test_v1_7_docs_compatibility_audit() -> void:
+	var compatibility := CompatibilityMatrix.new()
+	var report := compatibility.compatibility_report()
+	_assert(report["minimum"]["version"] == "4.3", "CompatibilityMatrix should report Godot 4.3 as minimum target.")
+	_assert(report["primary"]["version"] == "4.6", "CompatibilityMatrix should report Godot 4.6 as primary target.")
+	_assert(compatibility.runtime_status({"major": 4, "minor": 7})["support"] == "future-compatible", "CompatibilityMatrix should classify future Godot 4.x as compatible.")
+	_assert(compatibility.api_compatibility_checks().all(func(check): return check.get("ok", false)), "CompatibilityMatrix should pass API compatibility checks.")
+	compatibility.record_verification("4.5", true, "Local smoke test")
+	_assert(compatibility.compatibility_report()["verified"].has("4.5"), "CompatibilityMatrix should include local verification records.")
+
+	var audit := PRDAudit.new()
+	var audit_report := audit.report()
+	_assert(audit_report["ok"] and audit_report["percent"] == 100.0, "PRDAudit should report full module coverage.")
+	_assert(audit.markdown().contains("Coverage"), "PRDAudit should generate markdown output.")
+	for path in [
+		"res://docs/prd_audit.md",
+		"res://docs/api.md",
+		"res://docs/commands.md",
+		"res://docs/tutorial_zh.md",
+		"res://docs/v1.7.0.md",
+		"res://examples/full_vn/README.md",
+		"res://examples/full_vn/assets/README.md",
+		"res://examples/full_vn/scripts/chapter_01.nvs",
+	]:
+		_assert(FileAccess.file_exists(path), "v1.7.0 should include public docs/examples: %s" % path)
+	var source := FileAccess.get_file_as_string("res://examples/full_vn/scripts/chapter_01.nvs")
+	var parser := Parser.new()
+	var ast = parser.parse(source, "examples/full_vn/scripts/chapter_01.nvs")
+	_assert(parser.errors.is_empty() and ast.labels.has(&"ending"), "Full VN example script should parse without errors.")
+
+
 func _test_vm_milestone_script() -> void:
 	var parser := Parser.new()
 	var ast = parser.parse(_sample_script(), "v0_2_demo.nvs")
@@ -1536,6 +1569,7 @@ func _release_file_list_for_tests() -> Array:
 		"addons/novella/editor/ui/timeline_editor_panel.tscn",
 		"addons/novella/editor/ui/timeline_editor_panel.gd",
 		"addons/novella/release/compatibility_matrix.gd",
+		"addons/novella/release/prd_audit.gd",
 		"addons/novella/release/release_manifest.gd",
 		"addons/novella/release/release_validator.gd",
 		"addons/novella/presentation/ui/runtime_player.tscn",
@@ -1558,6 +1592,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/commands.md",
 		"docs/compatibility.md",
 		"docs/development.md",
+		"docs/prd_audit.md",
 		"docs/release.md",
 		"docs/tutorial_zh.md",
 		"docs/v1.0-alpha.md",
@@ -1575,6 +1610,10 @@ func _release_file_list_for_tests() -> Array:
 		"docs/v1.4.0.md",
 		"docs/v1.5.0.md",
 		"docs/v1.6.0.md",
+		"docs/v1.7.0.md",
+		"examples/full_vn/README.md",
+		"examples/full_vn/assets/README.md",
+		"examples/full_vn/scripts/chapter_01.nvs",
 		"examples/scripts/v1_0_showcase.nvs",
 		".github/workflows/release-check.yml",
 		"scripts/test-godot.ps1",
@@ -1590,7 +1629,7 @@ func _plugin_cfg_text_for_tests() -> String:
 name="Novella"
 description="Commercial-grade visual novel / GalGame framework for Godot 4."
 author="TodayYueC"
-version="1.6.0"
+version="1.7.0"
 script="novella_editor_plugin.gd"
 """
 
