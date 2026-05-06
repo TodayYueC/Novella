@@ -6,7 +6,10 @@ class_name NovellaTimelineEditorPanel
 signal event_added(event_type: StringName)
 signal event_selected(index: int)
 signal event_moved(from_index: int, to_index: int)
+signal event_duplicated(index: int)
 signal event_deleted(index: int)
+signal events_copied(indices: Array)
+signal events_pasted(index: int)
 signal mode_changed(mode: StringName)
 
 var mode: StringName = &"visual"
@@ -19,6 +22,8 @@ var add_command_button: Button
 var move_up_button: Button
 var move_down_button: Button
 var duplicate_button: Button
+var copy_button: Button
+var paste_button: Button
 var delete_button: Button
 
 func _ready() -> void:
@@ -28,10 +33,14 @@ func _ready() -> void:
 func apply_events(next_events: Array) -> void:
 	_build_ui()
 	events = next_events.duplicate(true)
+	if selected_index >= events.size():
+		selected_index = -1
 	list.clear()
 	for event in events:
 		var index := list.add_item(_event_title(event))
 		list.set_item_metadata(index, int(event.get("order", index)))
+	if selected_index >= 0 and selected_index < list.item_count:
+		list.select(selected_index)
 	_update_buttons()
 
 
@@ -39,6 +48,20 @@ func set_mode(next_mode: StringName) -> void:
 	mode = next_mode
 	mode_button.text = "Mode: %s" % String(mode)
 	mode_changed.emit(mode)
+
+
+func get_selected_index() -> int:
+	return selected_index
+
+
+func select_event(index: int) -> void:
+	if index < 0 or index >= events.size():
+		selected_index = -1
+		list.deselect_all()
+	else:
+		selected_index = index
+		list.select(index)
+	_update_buttons()
 
 
 func _build_ui() -> void:
@@ -94,8 +117,20 @@ func _build_ui() -> void:
 	duplicate_button = Button.new()
 	duplicate_button.name = "DuplicateButton"
 	duplicate_button.text = "Duplicate"
-	duplicate_button.pressed.connect(func(): event_added.emit(&"duplicate"))
+	duplicate_button.pressed.connect(_on_duplicate_pressed)
 	toolbar.add_child(duplicate_button)
+
+	copy_button = Button.new()
+	copy_button.name = "CopyButton"
+	copy_button.text = "Copy"
+	copy_button.pressed.connect(_on_copy_pressed)
+	toolbar.add_child(copy_button)
+
+	paste_button = Button.new()
+	paste_button.name = "PasteButton"
+	paste_button.text = "Paste"
+	paste_button.pressed.connect(_on_paste_pressed)
+	toolbar.add_child(paste_button)
 
 	delete_button = Button.new()
 	delete_button.name = "DeleteButton"
@@ -147,6 +182,20 @@ func _on_delete_pressed() -> void:
 		event_deleted.emit(selected_index)
 
 
+func _on_duplicate_pressed() -> void:
+	if selected_index >= 0:
+		event_duplicated.emit(selected_index)
+
+
+func _on_copy_pressed() -> void:
+	if selected_index >= 0:
+		events_copied.emit([selected_index])
+
+
+func _on_paste_pressed() -> void:
+	events_pasted.emit(selected_index + 1 if selected_index >= 0 else -1)
+
+
 func _on_mode_pressed() -> void:
 	set_mode(&"text" if mode == &"visual" else &"visual")
 
@@ -158,3 +207,4 @@ func _update_buttons() -> void:
 	move_down_button.disabled = selected_index < 0 or selected_index + 1 >= events.size()
 	delete_button.disabled = selected_index < 0
 	duplicate_button.disabled = selected_index < 0
+	copy_button.disabled = selected_index < 0

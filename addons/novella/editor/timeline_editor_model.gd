@@ -219,9 +219,9 @@ func _event_to_script(event: Dictionary) -> String:
 		"label":
 			return "label %s:" % str(event.get("label", "start"))
 		"dialogue":
-			return "%s: %s" % [str(event.get("speaker", "Narrator")), str(event.get("text", ""))]
+			return _append_inline_commands("%s: %s" % [str(event.get("speaker", "Narrator")), str(event.get("text", ""))], event)
 		"narration":
-			return str(event.get("text", ""))
+			return _append_inline_commands(str(event.get("text", "")), event)
 		"background":
 			return ("@bg %s %s" % [str(event.get("id", event.get("arguments", ""))), str(event.get("options", ""))]).strip_edges()
 		"character":
@@ -239,6 +239,12 @@ func _event_to_script(event: Dictionary) -> String:
 				return "break"
 			if kind == "continue":
 				return "continue"
+			if kind == "call":
+				var call_target := str(event.get("target", ""))
+				var call_arguments := str(event.get("arguments", "")).strip_edges()
+				if call_arguments.is_empty():
+					return "call %s" % call_target
+				return "call %s(%s)" % [call_target, call_arguments]
 			return "%s %s" % [kind, str(event.get("target", ""))]
 		"choice_option":
 			var condition := str(event.get("condition", ""))
@@ -326,6 +332,25 @@ func _append_nested_events(container: Dictionary, indent: int, lines: Array[Stri
 
 func _indent_text(indent: int) -> String:
 	return "    ".repeat(maxi(indent, 0))
+
+
+func _append_inline_commands(line: String, event: Dictionary) -> String:
+	var commands: Array = event.get("inline_commands", [])
+	if commands.is_empty():
+		return line
+	var fragments: Array[String] = []
+	for command_value in commands:
+		if not command_value is Dictionary:
+			continue
+		var command: Dictionary = command_value
+		var command_name := str(command.get("command", command.get("command_name", ""))).strip_edges()
+		if command_name.is_empty():
+			continue
+		var arguments := str(command.get("arguments", command.get("raw_arguments", ""))).strip_edges()
+		fragments.append(("@%s %s" % [command_name, arguments]).strip_edges())
+	if fragments.is_empty():
+		return line
+	return ("%s %s" % [line.strip_edges(), " ".join(fragments)]).strip_edges()
 
 
 func _normalize_events(source_events: Array) -> Array:

@@ -1398,3 +1398,166 @@ func _ready() -> void:
 9. 发布打包流程。
 
 这样做比一开始就堆完整项目更稳。每加一个系统，就跑一次 Demo，确认没有破坏前面的流程。
+
+## 23. 使用 v2.1.0 可视化剧情编辑器
+
+这一节适合不想直接手写 `.nvs` 的作者。可视化编辑器不会替代脚本语法，但可以把最常见的剧情结构变成表单和事件卡片。
+
+### 23.1 打开 Novella Dock
+
+1. 打开 Godot 4.6。
+2. 打开项目。
+3. 进入 `Project > Project Settings > Plugins`。
+4. 确认 `Novella` 插件已经启用。
+5. 在编辑器右侧找到 `Novella` Dock。
+
+### 23.2 新建剧情文件
+
+1. 在 Dock 顶部路径栏输入：
+
+```text
+res://story/chapter_01.nvs
+```
+
+2. 点击 `New`。
+3. 切到 `Inspector` 页。
+4. 在 `ScriptPreview` 里确认已经出现 starter 剧本。
+5. 点击 `Save`，把 starter 剧本写入这个路径。
+
+### 23.3 添加对白
+
+1. 切到 `Inspector` 页。
+2. 在 `Type` 里选择 `Dialogue`。
+3. 在 `Speaker` 输入角色名，例如：
+
+```text
+Ryone
+```
+
+4. 在 `Text / Args` 输入对白：
+
+```text
+Welcome to the visual editor.
+```
+
+5. 点击 `Add`。
+6. 切到 `Visual` 页，确认新增了一张对白事件卡。
+7. 回到 `Inspector` 页，确认 `ScriptPreview` 里出现：
+
+```text
+Ryone: Welcome to the visual editor.
+```
+
+### 23.4 添加背景、角色和音乐
+
+背景事件：
+
+1. `Type` 选择 `Background`。
+2. `Name` 输入背景 ID，例如 `school_day`。
+3. `Command` 保持 `bg`，或者留空后由默认值补全。
+4. `Text / Args` 可以输入参数，例如：
+
+```text
+transition:dissolve time:0.6
+```
+
+5. 点击 `Add`。
+
+角色事件：
+
+1. `Type` 选择 `Character`。
+2. `Name` 输入角色 ID，例如 `ryone`。
+3. `Command` 输入 `char`。
+4. `Text / Args` 输入：
+
+```text
+uniform happy pos:left enter:fade
+```
+
+5. 点击 `Add`。
+
+音乐事件：
+
+1. `Type` 选择 `Audio`。
+2. `Name` 输入音乐 ID，例如 `main_theme`。
+3. `Command` 输入 `play_music`。
+4. `Text / Args` 输入：
+
+```text
+fade:1.0 volume:0.8
+```
+
+5. 点击 `Add`。
+
+### 23.5 添加菜单选项
+
+1. `Type` 选择 `Menu`。
+2. 在 `Choices` 中每行写一个选项。
+3. 每行格式是：
+
+```text
+选项文本 | 条件 | 跳转目标
+```
+
+示例：
+
+```text
+Stay | affinity >= 5 | stay_path
+Leave |  | leave_path
+```
+
+4. 点击 `Add`。
+5. 再添加两个 `Label` 事件，`Name` 分别写 `stay_path` 和 `leave_path`。
+6. 在两个 label 后面分别添加对应剧情。
+
+生成的脚本会接近：
+
+```text
+menu:
+    "Stay" if affinity >= 5:
+        jump stay_path
+    "Leave":
+        jump leave_path
+```
+
+### 23.6 修改已有事件
+
+1. 切到 `Visual` 页。
+2. 点击一张事件卡。
+3. 切回 `Inspector` 页。
+4. 表单会填入选中事件的内容。
+5. 修改字段。
+6. 点击 `Update`。
+7. 查看 `ScriptPreview`，确认脚本已经更新。
+
+### 23.7 调整顺序、复制和撤销
+
+在 `Visual` 页：
+
+1. 选中事件卡。
+2. 点击 `Up` 或 `Down` 调整顺序。
+3. 点击 `Duplicate` 复制一份到后面。
+4. 点击 `Copy` 后再点 `Paste`，把事件复制到当前位置后面。
+5. 点击 `Delete` 删除选中事件。
+
+在 `Inspector` 页：
+
+1. 点击 `Undo` 撤销最近一次编辑。
+2. 点击 `Redo` 重做刚撤销的编辑。
+
+### 23.8 保存和重新载入
+
+1. 每次完成一组编辑后，点击 Dock 顶部的 `Save`。
+2. 关闭再打开项目后，在路径栏输入同一个 `.nvs` 路径。
+3. 点击 `Analyze`。
+4. `Visual` 页会重新显示事件卡片。
+5. `Diagnostics` 页如果显示 `Errors: 0`，说明当前脚本没有结构性错误。
+
+### 23.9 当前边界
+
+`v2.1.0` 的可视化编辑器优先覆盖常见剧情写作流程。复杂的嵌套条件、循环、大规模资源批处理和完整拖拽式节点图仍建议配合 `.nvs` 文本编辑或后续版本继续增强。实际发布前仍应运行：
+
+```powershell
+.\scripts\test-godot.ps1
+.\scripts\validate-release.ps1
+```

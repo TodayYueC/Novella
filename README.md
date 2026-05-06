@@ -1,6 +1,6 @@
 # Novella
 
-Novella is a Godot 4 visual novel / GalGame plugin. The current stable release is `2.0.0`. Godot 4.6 is the primary development and validation runtime, and Godot 4.3+ is the compatibility target for the Godot 4 line.
+Novella is a Godot 4 visual novel / GalGame plugin. The current stable release is `2.1.0`. Godot 4.6 is the primary development and validation runtime, and Godot 4.3+ is the compatibility target for the Godot 4 line.
 
 Novella is implemented in GDScript so projects can install, inspect, extend, and package it like a normal Godot addon. Godot also supports C++ / GDExtension plugins, but Novella keeps the 1.0 runtime script-first for portability, editor integration, and easier community contribution. Native modules can be added later behind the same public APIs if profiling shows a real bottleneck.
 
@@ -326,9 +326,10 @@ After enabling the plugin, Godot shows a `Novella` editor dock. The current dock
 - Report diagnostics such as missing labels and unknown commands.
 - Provide starter script templates.
 - Index likely character, background, audio, script, and UI assets.
-- Open the visual timeline panel foundation.
+- Open the visual timeline panel.
+- Create, edit, copy, paste, undo, redo, preview, and save `.nvs` story events from the Inspector tab.
 
-The visual editor in 1.4 is still model-first, but it now supports production workflow helpers: live preview sessions, timeline copy/paste/collapse styling, nested menu/branch export, asset reference validation, resource workbench cards, UI skin defaults, confirmation requests, toast state, localization template export/import, localized script preview, language-service reports, route flow graphs, and on-demand asset load plans.
+The visual story editor introduced in `2.1.0` is a practical non-code authoring surface for common story operations. Use the `Visual` tab to select and reorder event cards, then use the `Inspector` tab to choose an event type, fill in fields, preview generated script text, and save it back to a `.nvs` file. It currently focuses on labels, dialogue, narration, commands, background/character/audio commands, jumps/calls/returns, and menu choices.
 
 ```gdscript
 var workflow := NovellaProductionWorkflow.new()
@@ -427,7 +428,7 @@ Commit source code, addon files, examples, tests, public docs, and small placeho
 
 ### 16. Release Status
 
-Implemented in `2.0.0`:
+Implemented in `2.1.0`:
 
 - v0.1 runtime core: lexer, parser, AST, VM, variables, command registry, and basic flow commands.
 - v0.2 presentation core: typewriter timing, rich text conversion, ADV/NVL printer state, character/background/effect/audio/camera managers, and presentation commands.
@@ -444,6 +445,7 @@ Implemented in `2.0.0`:
 - v1.6.0 meta/debug/performance/input completion: typography and localized asset overrides, on-demand language packs, plural forms, split/merge localization helpers, music room, route map data, achievement notifications, debug panel models, command console UI data, node/performance/flow graph panel data, windowed on-demand loading, memory/FPS baselines, touch input, and gamepad input.
 - v1.7.0 docs/examples/compatibility/audit completion: full source-only VN example, bilingual API and command doc refresh, tutorial refresh, compatibility report APIs, public PRD audit, and targeted audit tests.
 - v2.0.0 official full PRD release: final acceptance documentation, 2.x release validation, package verification, public-ready tag, and GitHub Release artifact.
+- v2.1.0 visual story editor: non-code editor model, editor dock Inspector controls, script preview, save-to-file workflow, copy/paste/undo/redo wiring, and release tests for visual authoring.
 
 Remaining verification:
 
@@ -737,9 +739,10 @@ CSV 列为 `key,text`。已支持带引号字段和转义引号。
 - 报告缺失 label、未知命令等诊断信息。
 - 提供入门剧本模板。
 - 索引可能的角色、背景、音频、剧本和 UI 资源。
-- 打开可视化时间线面板基础功能。
+- 打开可视化时间线面板。
+- 在 Inspector 里通过表单创建、编辑、复制、粘贴、撤销、重做、预览并保存 `.nvs` 剧情事件。
 
-1.0 的可视化编辑器仍是基础层。它可以建模、编辑、撤销、重做和序列化时间线事件，但还不是完整的生产级拖拽式节点编辑器。
+`2.1.0` 的可视化剧情编辑器已经可以完成常见非代码写作操作：在 `Visual` 页选择和调整事件卡片，在 `Inspector` 页选择事件类型、填写字段、查看生成的剧本预览，并保存回 `.nvs` 文件。当前重点覆盖 label、对白、旁白、命令、背景/角色/音频命令、跳转/调用/返回和菜单选项。
 
 ### 11. 剧本迁移
 
@@ -813,7 +816,7 @@ print(status["message"])
 
 ### 16. 发布状态
 
-`2.0.0` 已包含：
+`2.1.0` 已包含：
 
 - v0.1 运行时核心：lexer、parser、AST、VM、变量、命令注册和基础流程命令。
 - v0.2 表现层核心：打字机、富文本、ADV/NVL printer 状态、角色/背景/特效/音频/镜头管理器和表现层命令。
@@ -830,6 +833,7 @@ print(status["message"])
 - v1.6.0 元系统/调试/性能/输入补全：排版与本地化资源覆盖、按需语言包、复数形式、文本拆分合并、本地音乐室、路线图数据、成就通知、调试面板模型、命令控制台 UI 数据、节点/性能/流程图面板数据、窗口化按需加载、内存/FPS 基线、触控输入和手柄输入。
 - v1.7.0 文档/示例/兼容性/审计补全：完整源码型 VN 示例、中英 API 和命令文档刷新、教程刷新、兼容性报告 API、公开 PRD 审计和审计测试。
 - v2.0.0 PRD 全量正式版：最终验收文档、2.x 发布校验、包内容验证、公开正式 tag 和 GitHub Release 产物。
+- v2.1.0 可视化剧情编辑器：非代码编辑模型、Dock Inspector 表单、剧本预览、保存到文件、复制/粘贴/撤销/重做串联，以及可视化创作发布测试。
 
 剩余验证：
 

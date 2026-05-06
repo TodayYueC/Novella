@@ -38,6 +38,7 @@ const EditorController := preload("res://addons/novella/editor/editor_controller
 const OutlineBuilder := preload("res://addons/novella/editor/script_outline_builder.gd")
 const TimelineModel := preload("res://addons/novella/editor/timeline_model.gd")
 const TimelineEditorModel := preload("res://addons/novella/editor/timeline_editor_model.gd")
+const VisualStoryEditorModel := preload("res://addons/novella/editor/visual_story_editor_model.gd")
 const ProductionWorkflow := preload("res://addons/novella/editor/production_workflow.gd")
 const ScriptLanguageService := preload("res://addons/novella/editor/script_language_service.gd")
 const EditorPreviewSession := preload("res://addons/novella/editor/editor_preview_session.gd")
@@ -67,7 +68,7 @@ var failures: Array[String] = []
 func _init() -> void:
 	_run_all()
 	if failures.is_empty():
-		print("Novella v2.0.0 tests passed.")
+		print("Novella v2.1.0 tests passed.")
 		quit(0)
 	else:
 		push_error("Novella tests failed:\n%s" % "\n".join(failures))
@@ -104,6 +105,7 @@ func _run_all() -> void:
 	_test_v1_6_meta_debug_performance_input()
 	_test_v1_7_docs_compatibility_audit()
 	_test_v2_0_final_acceptance()
+	_test_v2_1_visual_story_editor()
 	_test_vm_milestone_script()
 
 
@@ -1216,19 +1218,70 @@ func _test_v1_7_docs_compatibility_audit() -> void:
 
 
 func _test_v2_0_final_acceptance() -> void:
-	_assert(Constants.VERSION == "2.0.0", "Constants should report v2.0.0.")
+	_assert(Constants.VERSION == "2.1.0", "Constants should report v2.1.0.")
 	var manifest := ReleaseManifest.new()
-	_assert(manifest.package_name() == "novella-2.0.0.zip", "ReleaseManifest should build the v2.0.0 package name.")
+	_assert(manifest.package_name() == "novella-2.1.0.zip", "ReleaseManifest should build the v2.1.0 package name.")
 	var validator := ReleaseValidator.new()
-	_assert(validator.validate_release(_release_file_list_for_tests(), _plugin_cfg_text_for_tests())["ok"], "ReleaseValidator should accept the v2.0.0 release line.")
+	_assert(validator.validate_release(_release_file_list_for_tests(), _plugin_cfg_text_for_tests())["ok"], "ReleaseValidator should accept the v2.1.0 release line.")
 	var audit := PRDAudit.new()
-	_assert(audit.report()["ok"], "Final PRD audit should pass for v2.0.0.")
+	_assert(audit.report()["ok"], "Final PRD audit should pass for v2.1.0.")
 	for path in [
 		"res://docs/final_acceptance.md",
 		"res://docs/v2.0.0.md",
+		"res://docs/v2.1.0.md",
 		"res://LICENSE",
 	]:
-		_assert(FileAccess.file_exists(path), "v2.0.0 should include final acceptance files: %s" % path)
+		_assert(FileAccess.file_exists(path), "v2.1.0 should include final acceptance files: %s" % path)
+
+
+func _test_v2_1_visual_story_editor() -> void:
+	var editor := VisualStoryEditorModel.new()
+	var state := editor.new_script("res://.godot_user/novella_visual_editor/chapter_01.nvs")
+	_assert(state["ok"], "VisualStoryEditorModel should create a starter script.")
+	_assert(state["events"].size() == 2, "VisualStoryEditorModel should expose starter events.")
+	state = editor.add_event(&"dialogue", {"speaker": "Ryone", "text": "Visual editing works."})
+	state = editor.add_event(&"command", {"command": "set", "arguments": "affinity += 1"})
+	state = editor.add_event(&"menu", {"choices_text": "Stay | affinity >= 1 | stay_path\nLeave |  | leave_path"})
+	state = editor.add_event(&"label", {"label": "stay_path"})
+	state = editor.add_event(&"narration", {"text": "The visual editor wrote this narration."})
+	state = editor.add_event(&"flow", {"kind": "jump", "target": "ending"})
+	state = editor.add_event(&"label", {"label": "leave_path"})
+	state = editor.add_event(&"flow", {"kind": "jump", "target": "ending"})
+	state = editor.add_event(&"label", {"label": "ending"})
+	_assert(state["script"].contains("Ryone: Visual editing works."), "Visual editor should serialize dialogue edits.")
+	_assert(state["script"].contains("menu:"), "Visual editor should serialize menu blocks.")
+	_assert(state["script"].contains("\"Stay\" if affinity >= 1:"), "Visual editor should serialize conditional choices.")
+	var updated := editor.update_event(1, {"type": "dialogue", "speaker": "Ryone", "text": "Updated visually."})
+	_assert(updated["script"].contains("Ryone: Updated visually."), "Visual editor should update selected events.")
+	var moved := editor.move_event(3, 4)
+	_assert(moved["events"][4].get("command", "") == "set", "Visual editor should reorder event cards.")
+	var copied := editor.copy_events([1])
+	_assert(copied["clipboard"]["count"] == 1, "Visual editor should copy selected events.")
+	var pasted := editor.paste_events(2)
+	_assert(pasted["events"].size() == moved["events"].size() + 1, "Visual editor should paste copied events.")
+	_assert(editor.undo()["events"].size() == moved["events"].size(), "Visual editor should undo paste operations.")
+	_assert(editor.redo()["events"].size() == pasted["events"].size(), "Visual editor should redo paste operations.")
+	var validation := editor.validate_current(_known_commands_for_tests())
+	_assert(validation["ok"], "Visual editor output should validate as Novella script: %s" % [validation["diagnostics"]])
+	var saved := editor.save_to_file("res://.godot_user/novella_visual_editor/chapter_01.nvs")
+	_assert(saved.get("save", {}).get("ok", false), "Visual editor should save generated .nvs files.")
+	var loaded := editor.load_file("res://.godot_user/novella_visual_editor/chapter_01.nvs", _known_commands_for_tests())
+	_assert(loaded["ok"] and loaded["events"].size() > 0, "Visual editor should reload saved .nvs files.")
+	_assert(editor.event_form_schema(&"dialogue")["fields"].has("speaker"), "Visual editor should expose form schema metadata.")
+
+	var controller := EditorController.new()
+	var controller_state := controller.open_visual_source(_v2_1_visual_editor_script(), "res://story/visual.nvs", _known_commands_for_tests())
+	_assert(controller_state["ok"], "EditorController should expose visual editor source loading.")
+	controller_state = controller.visual_add_event(&"background", {"id": "school_day"}, -1, _known_commands_for_tests())
+	_assert(controller_state["script"].contains("@bg school_day"), "EditorController should add visual background commands.")
+
+	var dock_scene: PackedScene = load("res://addons/novella/editor/ui/novella_editor_dock.tscn")
+	var dock = dock_scene.instantiate()
+	dock.apply_visual_state(controller_state)
+	_assert(dock.get_node("Root/Tabs/Visual/Root/EventList").item_count > 0, "Editor dock should render visual editor events.")
+	_assert(dock.get_node("Root/Tabs/Inspector/ScriptPreview").text.contains("@bg school_day"), "Editor dock should show generated script preview.")
+	_assert(dock.get_node("Root/Tabs/Inspector/StatusLabel").text.contains("errors:0"), "Editor dock should show visual diagnostics.")
+	dock.free()
 
 
 func _test_vm_milestone_script() -> void:
@@ -1387,6 +1440,29 @@ label left_path:
 
 label right_path:
     Ryone: Right path."""
+
+
+func _v2_1_visual_editor_script() -> String:
+	return """@var affinity = 1
+
+label start:
+    Ryone: Opened in the visual editor.
+    menu:
+        "Stay" if affinity >= 1:
+            jump stay_path
+        "Leave":
+            jump leave_path
+
+label stay_path:
+    Ryone: Staying.
+    jump ending
+
+label leave_path:
+    Ryone: Leaving.
+    jump ending
+
+label ending:
+    Ryone: Done."""
 
 
 func _sample_script() -> String:
@@ -1578,6 +1654,7 @@ func _release_file_list_for_tests() -> Array:
 		"addons/novella/editor/resource_workbench.gd",
 		"addons/novella/editor/script_language_service.gd",
 		"addons/novella/editor/timeline_editor_model.gd",
+		"addons/novella/editor/visual_story_editor_model.gd",
 		"addons/novella/performance/on_demand_asset_loader.gd",
 		"addons/novella/performance/performance_budget.gd",
 		"addons/novella/presentation/scene_renderer.gd",
@@ -1613,6 +1690,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/prd_audit.md",
 		"docs/release.md",
 		"docs/tutorial_zh.md",
+		"docs/usage_step_by_step_zh.md",
 		"docs/v1.0-alpha.md",
 		"docs/v1.0-rc.1.md",
 		"docs/v1.0-rc.2.md",
@@ -1630,6 +1708,7 @@ func _release_file_list_for_tests() -> Array:
 		"docs/v1.6.0.md",
 		"docs/v1.7.0.md",
 		"docs/v2.0.0.md",
+		"docs/v2.1.0.md",
 		"examples/full_vn/README.md",
 		"examples/full_vn/assets/README.md",
 		"examples/full_vn/scripts/chapter_01.nvs",
@@ -1648,7 +1727,7 @@ func _plugin_cfg_text_for_tests() -> String:
 name="Novella"
 description="Commercial-grade visual novel / GalGame framework for Godot 4."
 author="TodayYueC"
-version="2.0.0"
+version="2.1.0"
 script="novella_editor_plugin.gd"
 """
 
